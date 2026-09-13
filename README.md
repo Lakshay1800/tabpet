@@ -146,4 +146,4 @@ The simulator shows the seat, the run, and the around route. The finger chase an
 ## License
 
 - Code: [MIT](LICENSE).
-- Art, the sprite sheets for all six animals: [CC BY 4.0](assets/LICENSE-ART.md). Use them in anything, commercial apps included, and credit "react-native-tabpet" somewhere in your app or repo; the license file lists the provenance and attribution of each sheet.
+- Art, the sprite sheets for all six animals: [CC BY 4.0](assets/LICENSE-ART.md). Use them in anything, commercial apps included, and credit "tabpet" somewhere in your app or repo; the license file lists the provenance and attribution of each sheet.

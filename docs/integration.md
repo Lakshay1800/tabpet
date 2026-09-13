@@ -173,7 +173,7 @@ The root entry `react-native-tabpet` registers all six built-ins and bundles eve
 
 ```tsx
 import { CompanionPerch, CompanionProvider, registerCompanion } from 'react-native-tabpet/bare';
-import { cat } from 'tabpet/animals/cat';
+import { cat } from 'react-native-tabpet/animals/cat';
 
 registerCompanion(cat);
 // ... <CompanionProvider defaultCompanionId="cat"> ... <CompanionPerch ... />

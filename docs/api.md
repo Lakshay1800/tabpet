@@ -139,7 +139,7 @@ To ship one animal without bundling the rest:
 
 ```tsx
 import { CompanionPerch, CompanionProvider, registerCompanion } from 'react-native-tabpet/bare';
-import { cat } from 'tabpet/animals/cat';
+import { cat } from 'react-native-tabpet/animals/cat';
 
 registerCompanion(cat);
 <CompanionProvider defaultCompanionId="cat">{/* ... */}</CompanionProvider>;
