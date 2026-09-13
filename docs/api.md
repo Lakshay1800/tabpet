@@ -132,7 +132,7 @@ release(); // sits back down
 
 - `react-native-tabpet` - registers all six animals (panda, cat, turtle, raccoon, bird, squirrel), bundles every sheet, approximately 13MB
 - `react-native-tabpet/bare` - registers none, so you can ship one or two animals without the others
-- `tabpet/animals/<id>` - one profile each (panda, cat, turtle, raccoon, bird, squirrel)
+- `react-native-tabpet/animals/<id>` - one profile each (panda, cat, turtle, raccoon, bird, squirrel)
 - `react-native-tabpet/core` - Node-safe state, no react-native in its import graph
 
 To ship one animal without bundling the rest:

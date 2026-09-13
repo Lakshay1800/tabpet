@@ -43,7 +43,7 @@
     },
     "packages/tabpet": {
       "name": "react-native-tabpet",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "devDependencies": {
         "@types/react": "~19.2.2",
         "expo": "~57.0.8",

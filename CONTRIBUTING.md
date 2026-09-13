@@ -52,7 +52,7 @@ Install from a packed tarball, not a `file:` directory:
 
 ```bash
 cd packages/tabpet && bun pm pack
-# in your app's package.json: "react-native-tabpet": "file:../tabpet/packages/tabpet/react-native-tabpet-0.2.0.tgz"
+# in your app's package.json: "react-native-tabpet": "file:../tabpet/packages/tabpet/react-native-tabpet-0.2.1.tgz"
 ```
 
 bun materializes `file:` directories as per-file symlinks. Metro follows them out of your project and resolves tabpet's imports against the tabpet workspace's own node_modules - a second Reanimated boots and the app dies at launch with `property is not writable`. The tarball installs real files, which is also exactly what an npm install gives you.

@@ -1,6 +1,6 @@
 {
   "name": "react-native-tabpet",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A sprite-sheet companion for Expo apps: perches on the iOS tab bar, runs between tabs, chases your finger. iOS only.",
   "keywords": [
     "companion",

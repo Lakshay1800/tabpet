@@ -2,7 +2,7 @@
  * All six built-in profiles in one module - importing this (or `react-native-tabpet`,
  * which imports it for you) bundles every sprite sheet. A host that wants
  * to ship fewer animals should import `react-native-tabpet/bare` plus only the
- * `tabpet/animals/<id>` modules it needs instead.
+ * `react-native-tabpet/animals/<id>` modules it needs instead.
  */
 import { registerCompanion } from '../registry';
 import { bird } from './bird';
