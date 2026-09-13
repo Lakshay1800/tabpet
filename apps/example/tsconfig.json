@@ -5,7 +5,7 @@
     "skipLibCheck": true,
     "paths": {
       "@/*": ["./*"],
-      "tabpet": ["../../packages/tabpet/src/index.ts"]
+      "react-native-tabpet": ["../../packages/tabpet/src/index.ts"]
     }
   },
   "include": [

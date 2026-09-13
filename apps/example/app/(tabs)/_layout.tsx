@@ -1,7 +1,7 @@
 import { useSegments } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { StyleSheet, View } from 'react-native';
-import { CompanionPerch } from 'tabpet';
+import { CompanionPerch } from 'react-native-tabpet';
 
 import { SLOT_COUNT, slotIndex, TABS } from '@/components/tabs';
 import type { TabName } from '@/components/tabs';

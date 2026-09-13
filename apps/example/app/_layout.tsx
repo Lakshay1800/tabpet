@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { Stack } from 'expo-router';
 import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { CompanionProvider } from 'tabpet';
+import { CompanionProvider } from 'react-native-tabpet';
 
 import { fileStorage } from '@/components/file-storage';
 import { colors } from '@/components/tokens';

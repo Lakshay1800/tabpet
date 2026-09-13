@@ -9,6 +9,6 @@ First public release.
 - Runs between tabs at a constant speed, with a hop for the animals that hop. Chases the finger along the bar; the bar's own scrub keeps working by default, `barScrub="exclusive"` takes it over.
 - Around route for the raccoon and squirrel: over the end of the pill, along its underside, and up the far side. A tab change mid-route resumes along the outline instead of cutting through the glass.
 - Busy claims stand the companion up until the last one releases. Reduce Motion is honored throughout.
-- Entries: `tabpet` registers all six, `tabpet/bare` registers none, `tabpet/animals/<id>` one each, `tabpet/core` is Node-safe state.
+- Entries: `react-native-tabpet` registers all six, `react-native-tabpet/bare` registers none, `tabpet/animals/<id>` one each, `react-native-tabpet/core` is Node-safe state.
 - Dev builds warn once when the GlassPan native module is not linked.
 - Tools: the sprite-sheet slicer, deshadow, and the frame-stack and pill-geometry verifiers.

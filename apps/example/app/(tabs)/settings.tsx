@@ -5,7 +5,7 @@ import {
   listCompanions,
   useCompanionId,
   useSetCompanionId,
-} from 'tabpet';
+} from 'react-native-tabpet';
 
 import { Screen } from '@/components/screen';
 import { colors, radius, space, type } from '@/components/tokens';

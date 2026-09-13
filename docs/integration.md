@@ -12,7 +12,7 @@ The companion lives in a `CompanionPerch` that rides your app's native tab bar. 
 ## Install
 
 ```bash
-npx expo install tabpet react-native-reanimated react-native-gesture-handler react-native-worklets expo-image react-native-safe-area-context
+npx expo install react-native-tabpet react-native-reanimated react-native-gesture-handler react-native-worklets expo-image react-native-safe-area-context
 npx expo prebuild --clean --platform ios
 npx expo run:ios
 ```
@@ -25,12 +25,12 @@ Install from a packed tarball, not a `file:` directory:
 
 ```bash
 cd tabpet/packages/tabpet && bun pm pack
-# in your app's package.json: "tabpet": "file:../tabpet/packages/tabpet/tabpet-0.2.0.tgz"
+# in your app's package.json: "react-native-tabpet": "file:../tabpet/packages/tabpet/react-native-tabpet-0.2.0.tgz"
 ```
 
 Reason: bun materializes `file:` directories as per-file symlinks. Metro follows them out of your project and resolves tabpet's imports against the tabpet workspace's own node_modules. A second Reanimated boots and the app dies at launch with `property is not writable`. The tarball installs real files, which is also exactly what an npm install gives you.
 
-Re-packing under the same filename does not reinstall: bun caches a local tarball by path, so `bun install`, even with `--force`, re-extracts the old bytes. Give the new pack a new name, or `bun add ./path/to/tabpet-0.2.0.tgz` to refresh that one lock entry.
+Re-packing under the same filename does not reinstall: bun caches a local tarball by path, so `bun install`, even with `--force`, re-extracts the old bytes. Give the new pack a new name, or `bun add ./path/to/react-native-tabpet-0.2.0.tgz` to refresh that one lock entry.
 
 ## Check the pod linked
 
@@ -48,7 +48,7 @@ Wrap the root in `GestureHandlerRootView` and `CompanionProvider`:
 
 ```tsx
 // app/_layout.tsx
-import { CompanionProvider } from 'tabpet';
+import { CompanionProvider } from 'react-native-tabpet';
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -67,7 +67,7 @@ Mount one `CompanionPerch` next to the tab navigator and point it at the active 
 
 ```tsx
 // app/(tabs)/_layout.tsx
-import { CompanionPerch } from 'tabpet';
+import { CompanionPerch } from 'react-native-tabpet';
 import { useSegments } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { View } from 'react-native';
@@ -169,10 +169,10 @@ const { source, gesture } = useGestureFingerSource();
 
 ## Ship one animal
 
-The root entry `tabpet` registers all six built-ins and bundles every sprite sheet (~13MB). To ship only one or a subset, import from `tabpet/bare` and register only what you use:
+The root entry `react-native-tabpet` registers all six built-ins and bundles every sprite sheet (~13MB). To ship only one or a subset, import from `react-native-tabpet/bare` and register only what you use:
 
 ```tsx
-import { CompanionPerch, CompanionProvider, registerCompanion } from 'tabpet/bare';
+import { CompanionPerch, CompanionProvider, registerCompanion } from 'react-native-tabpet/bare';
 import { cat } from 'tabpet/animals/cat';
 
 registerCompanion(cat);
@@ -186,7 +186,7 @@ Each animal's three sheets weigh 1.4MB to 3.2MB; the root entry bundles all six.
 Tell the companion you're busy:
 
 ```ts
-import { beginCompanionBusy } from 'tabpet';
+import { beginCompanionBusy } from 'react-native-tabpet';
 
 const release = beginCompanionBusy(); // stands up, fidgets
 await syncEverything();
@@ -198,7 +198,12 @@ Claims stack, so several callers can be busy at once; the companion sits when th
 Let people pick their animal:
 
 ```tsx
-import { CompanionThumb, companionIds, useCompanionId, useSetCompanionId } from 'tabpet';
+import {
+  CompanionThumb,
+  companionIds,
+  useCompanionId,
+  useSetCompanionId,
+} from 'react-native-tabpet';
 
 function CompanionPicker() {
   const current = useCompanionId();

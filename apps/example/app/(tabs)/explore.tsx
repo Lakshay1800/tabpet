@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { beginCompanionBusy, useSetCompanionId } from 'tabpet';
+import { beginCompanionBusy, useSetCompanionId } from 'react-native-tabpet';
 
 import { Screen } from '@/components/screen';
 import { colors, radius, space, type } from '@/components/tokens';

@@ -48,7 +48,7 @@ tools/sprite-sheet.sh -i cat-single.mp4 -o cat-idle.png --from 171 --to 230
 Sheets are static `require()`s - Metro needs literal paths. Add the PNGs to `packages/tabpet/assets/`, then register a profile:
 
 ```ts
-import { registerCompanion } from 'tabpet';
+import { registerCompanion } from 'react-native-tabpet';
 
 registerCompanion({
   id: 'otter',

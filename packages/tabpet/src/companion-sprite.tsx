@@ -49,7 +49,7 @@ interface SheetSpec {
 
 /** Falls back to the default companion, then to whatever's registered first,
  *  when `id` is unknown; throws only in the pathological case where the
- *  registry is completely empty (a host importing `tabpet/bare` without
+ *  registry is completely empty (a host importing `react-native-tabpet/bare` without
  *  registering anything before render). */
 export function resolveProfile(id: string): CompanionProfile {
   const profile = getCompanion(id) ?? getCompanion(DEFAULT_COMPANION_ID) ?? listCompanions()[0];
@@ -172,7 +172,7 @@ export function CompanionSprite({
   const reduceMotion = useReducedMotion();
   const ctxId = useCompanionId();
   const companionId = companionIdProp ?? ctxId;
-  // unlike resolveProfile(), never throws: a host on `tabpet/bare` that
+  // unlike resolveProfile(), never throws: a host on `react-native-tabpet/bare` that
   // hasn't registered anything yet gets no companion rendered, not a crash.
   const profile =
     getCompanion(companionId) ?? getCompanion(DEFAULT_COMPANION_ID) ?? listCompanions()[0];
@@ -433,7 +433,7 @@ export function CompanionSprite({
 
   // every hook above runs unconditionally every render (Rules of Hooks);
   // only the returned element depends on a profile actually existing - a
-  // host on `tabpet/bare` that hasn't registered anything yet renders nothing.
+  // host on `react-native-tabpet/bare` that hasn't registered anything yet renders nothing.
   if (!profile) {
     return null;
   }

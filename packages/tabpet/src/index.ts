@@ -35,5 +35,5 @@ export type { CompanionStorage } from './storage';
 export { registerBuiltinCompanions } from './animals/all';
 
 // root entry registers all six built-ins so existing consumers get them for
-// free; `tabpet/bare` skips this and bundles none of the sprite sheets.
+// free; `react-native-tabpet/bare` skips this and bundles none of the sprite sheets.
 registerBuiltinCompanions();

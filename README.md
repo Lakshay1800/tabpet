@@ -4,7 +4,7 @@
 
 A companion for your Expo tab bar.
 
-[![npm](https://img.shields.io/npm/v/tabpet.svg)](https://www.npmjs.com/package/tabpet) [![license](https://img.shields.io/badge/code-MIT-blue.svg)](LICENSE) [![art](https://img.shields.io/badge/art-CC%20BY%204.0-green.svg)](assets/LICENSE-ART.md) ![platform](https://img.shields.io/badge/platform-iOS%2015.1%2B-lightgrey.svg)
+[![npm](https://img.shields.io/npm/v/react-native-tabpet.svg)](https://www.npmjs.com/package/react-native-tabpet) [![license](https://img.shields.io/badge/code-MIT-blue.svg)](LICENSE) [![art](https://img.shields.io/badge/art-CC%20BY%204.0-green.svg)](assets/LICENSE-ART.md) ![platform](https://img.shields.io/badge/platform-iOS%2015.1%2B-lightgrey.svg)
 
 <p>
   <img src="docs/media/raccoon-around.gif" width="49%" alt="A raccoon sprite running along the iOS tab bar, off the end of the floating pill, upside down underneath it, and back up to sit on the far tab" />
@@ -36,7 +36,7 @@ Reduce Motion is honored throughout. The companion is a button with an accessibi
 Expo SDK 57+, New Architecture, a dev build. iOS only: the Swift module has no Android counterpart, so a cross-platform app gates the mount on `Platform.OS === 'ios'`.
 
 ```bash
-npx expo install tabpet react-native-reanimated react-native-gesture-handler react-native-worklets expo-image react-native-safe-area-context
+npx expo install react-native-tabpet react-native-reanimated react-native-gesture-handler react-native-worklets expo-image react-native-safe-area-context
 npx expo prebuild --clean --platform ios
 npx expo run:ios
 ```
@@ -47,7 +47,7 @@ Wrap the root once:
 
 ```tsx
 // app/_layout.tsx
-import { CompanionProvider } from 'tabpet';
+import { CompanionProvider } from 'react-native-tabpet';
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -66,7 +66,7 @@ Mount one perch beside the tab navigator and tell it which tab is active:
 
 ```tsx
 // app/(tabs)/_layout.tsx
-import { CompanionPerch } from 'tabpet';
+import { CompanionPerch } from 'react-native-tabpet';
 import { useSegments } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { View } from 'react-native';
@@ -102,7 +102,7 @@ export default function TabsLayout() {
 
 That is the whole integration. The perch lives above the navigator, so a tab change never unmounts it; switching tabs is just a run from one seat to the next.
 
-Want only one animal? Import from `tabpet/bare` and register the one you ship. Want a picker, a busy state, or a custom tab bar? See the [integration guide](docs/integration.md).
+Want only one animal? Import from `react-native-tabpet/bare` and register the one you ship. Want a picker, a busy state, or a custom tab bar? See the [integration guide](docs/integration.md).
 
 ## The animals
 
@@ -146,4 +146,4 @@ The simulator shows the seat, the run, and the around route. The finger chase an
 ## License
 
 - Code: [MIT](LICENSE).
-- Art, the sprite sheets for all six animals: [CC BY 4.0](assets/LICENSE-ART.md). Use them in anything, commercial apps included, and credit "tabpet" somewhere in your app or repo; the license file lists the provenance and attribution of each sheet.
+- Art, the sprite sheets for all six animals: [CC BY 4.0](assets/LICENSE-ART.md). Use them in anything, commercial apps included, and credit "react-native-tabpet" somewhere in your app or repo; the license file lists the provenance and attribution of each sheet.

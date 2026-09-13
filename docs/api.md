@@ -15,7 +15,7 @@
 Wrap your root layout in `CompanionProvider` and `GestureHandlerRootView`:
 
 ```tsx
-import { CompanionProvider } from 'tabpet';
+import { CompanionProvider } from 'react-native-tabpet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export default function RootLayout() {
@@ -102,7 +102,7 @@ Static thumbnail (first idle frame) for pickers and settings rows.
 
 ## State
 
-Everything in this section is also exported from **`tabpet/core`**, a Node-safe entry with no sprite sheets or `react-native` anywhere in its import graph (plus `resolveCompanionId` and `DEFAULT_COMPANION_ID`). Host modules that run under a Node test runner should import state from `tabpet/core`; importing the root entry pulls the whole UI graph in with it.
+Everything in this section is also exported from **`react-native-tabpet/core`**, a Node-safe entry with no sprite sheets or `react-native` anywhere in its import graph (plus `resolveCompanionId` and `DEFAULT_COMPANION_ID`). Host modules that run under a Node test runner should import state from `react-native-tabpet/core`; importing the root entry pulls the whole UI graph in with it.
 
 - `beginCompanionBusy(): () => void` - returns the release function; claims stack, so several callers can be busy at once
 - `isCompanionBusy()` - current busy state
@@ -111,7 +111,7 @@ Everything in this section is also exported from **`tabpet/core`**, a Node-safe 
 Tell the companion you are busy:
 
 ```ts
-import { beginCompanionBusy } from 'tabpet';
+import { beginCompanionBusy } from 'react-native-tabpet';
 
 const release = beginCompanionBusy(); // stands up, fidgets
 await syncEverything();
@@ -130,15 +130,15 @@ release(); // sits back down
 
 ## Entries
 
-- `tabpet` - registers all six animals (panda, cat, turtle, raccoon, bird, squirrel), bundles every sheet, approximately 13MB
-- `tabpet/bare` - registers none, so you can ship one or two animals without the others
+- `react-native-tabpet` - registers all six animals (panda, cat, turtle, raccoon, bird, squirrel), bundles every sheet, approximately 13MB
+- `react-native-tabpet/bare` - registers none, so you can ship one or two animals without the others
 - `tabpet/animals/<id>` - one profile each (panda, cat, turtle, raccoon, bird, squirrel)
-- `tabpet/core` - Node-safe state, no react-native in its import graph
+- `react-native-tabpet/core` - Node-safe state, no react-native in its import graph
 
 To ship one animal without bundling the rest:
 
 ```tsx
-import { CompanionPerch, CompanionProvider, registerCompanion } from 'tabpet/bare';
+import { CompanionPerch, CompanionProvider, registerCompanion } from 'react-native-tabpet/bare';
 import { cat } from 'tabpet/animals/cat';
 
 registerCompanion(cat);

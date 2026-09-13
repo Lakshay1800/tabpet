@@ -1,5 +1,5 @@
 import { File, Paths } from 'expo-file-system';
-import type { CompanionStorage } from 'tabpet';
+import type { CompanionStorage } from 'react-native-tabpet';
 
 // Minimal persistence with no extra dependency: one JSON file in the
 // document directory. Swap for AsyncStorage or MMKV by implementing the

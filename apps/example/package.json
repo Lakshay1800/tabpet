@@ -24,8 +24,8 @@
     "react-native-reanimated": "4.5.0",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
-    "react-native-worklets": "0.10.3",
-    "tabpet": "workspace:*"
+    "react-native-tabpet": "workspace:*",
+    "react-native-worklets": "0.10.3"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",

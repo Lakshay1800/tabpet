@@ -1,5 +1,5 @@
 /**
- * Node-safe entry ('tabpet/core'): the busy claim and the id helpers only -
+ * Node-safe entry ('react-native-tabpet/core'): the busy claim and the id helpers only -
  * no sprite-sheet requires, no react-native imports anywhere in the graph.
  * Host code that runs under a Node test runner (services, stores, bridges)
  * imports from here; UI code stays on the root entry. Adding an export?
