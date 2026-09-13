@@ -16,7 +16,7 @@
   "author": "Lakshay Mehandru",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Lakshay1800/tabpet.git",
+    "url": "git+https://github.com/Lakshay1800/tabpet.git",
     "directory": "packages/tabpet"
   },
   "source": "./src/index.ts",
