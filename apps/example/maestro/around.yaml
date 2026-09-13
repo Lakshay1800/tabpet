@@ -1,0 +1,14 @@
+appId: dev.example.companion
+---
+- launchApp
+- waitForAnimationToEnd
+- tapOn: 'Settings'
+- waitForAnimationToEnd
+- tapOn: 'Choose raccoon'
+- waitForAnimationToEnd
+- tapOn: 'Home'
+- waitForAnimationToEnd
+- tapOn: 'Settings'
+- takeScreenshot: maestro/out/a1-around-tap
+- waitForAnimationToEnd
+- takeScreenshot: maestro/out/a2-around-seated

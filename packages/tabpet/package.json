@@ -1,0 +1,85 @@
+{
+  "name": "tabpet",
+  "version": "0.2.0",
+  "description": "A sprite-sheet companion for Expo apps: perches on the iOS tab bar, runs between tabs, chases your finger. iOS only.",
+  "keywords": [
+    "companion",
+    "expo",
+    "pet",
+    "react-native",
+    "reanimated",
+    "sprite"
+  ],
+  "homepage": "https://github.com/Lakshay1800/tabpet",
+  "bugs": "https://github.com/Lakshay1800/tabpet/issues",
+  "license": "MIT",
+  "author": "Lakshay Mehandru",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Lakshay1800/tabpet.git",
+    "directory": "packages/tabpet"
+  },
+  "source": "./src/index.ts",
+  "files": [
+    "build",
+    "src",
+    "ios",
+    "assets",
+    "expo-module.config.json",
+    "README.md",
+    "!src/**/*.test.ts"
+  ],
+  "main": "./build/index.js",
+  "types": "./build/index.d.ts",
+  "react-native": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "react-native": "./src/index.ts",
+      "default": "./build/index.js"
+    },
+    "./core": {
+      "types": "./build/core.d.ts",
+      "react-native": "./src/core.ts",
+      "default": "./build/core.js"
+    },
+    "./bare": {
+      "types": "./build/bare.d.ts",
+      "react-native": "./src/bare.ts",
+      "default": "./build/bare.js"
+    },
+    "./animals/*": {
+      "types": "./build/animals/*.d.ts",
+      "react-native": "./src/animals/*.ts",
+      "default": "./build/animals/*.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "expo": "~57.0.8",
+    "expo-image": "~57.0.1",
+    "expo-modules-core": "~57.0.11",
+    "react": "19.2.3",
+    "react-native": "0.86.0",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-reanimated": "4.5.0",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-worklets": "0.10.3"
+  },
+  "peerDependencies": {
+    "expo": "*",
+    "expo-image": "*",
+    "expo-modules-core": "*",
+    "react": "*",
+    "react-native": "*",
+    "react-native-gesture-handler": "*",
+    "react-native-reanimated": ">=4.0.0",
+    "react-native-safe-area-context": "*",
+    "react-native-worklets": "*"
+  }
+}

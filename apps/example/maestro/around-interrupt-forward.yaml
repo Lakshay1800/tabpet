@@ -1,0 +1,20 @@
+# Companion piece to around-interrupt.yaml: the forward case. Same reason
+# the app drives the navigations on a timer instead of Maestro tapping twice
+# - per-tap latency here (3-4s) exceeds the whole route (~2.1s). The deep
+# link keeps the demo out of the UI: opening
+# companion://explore?demo=keep-going starts Settings -> Home the other way,
+# and the scripted interrupt lands on the far cap past the underside, so the
+# shorter way is forward and the companion continues on toward Explore instead of
+# reversing. Pair with `tools/frame-stack.sh` (UDID, never `booted`).
+appId: dev.example.companion
+---
+- launchApp
+- waitForAnimationToEnd
+- openLink: companion://explore?demo=keep-going
+# iOS confirms a custom-scheme link opened from outside the app
+- tapOn:
+    text: 'Open'
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 9000
+- takeScreenshot: maestro/out/aif4-around-interrupt-forward-resumed

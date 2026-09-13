@@ -1,0 +1,23 @@
+# Proves: a tab tap that lands while the companion is mid around-route (curved or
+# underside leg) resumes along the pill's outline from where it actually is,
+# instead of cancelling and teleporting straight to the new seat. The app
+# drives the navigations itself on a timer because Maestro's per-tap latency
+# on this host (3-4s, element lookup) exceeds the whole route (~2.1s) - two
+# manual taps could never land one mid-route. The deep link keeps the demo
+# out of the UI: opening companion://explore?demo=turn-back starts Home ->
+# Settings, and the scripted interrupt lands on the underside near the Home
+# end, so the companion reverses back the way it came instead of continuing to
+# Settings. Pair with `tools/frame-stack.sh` (UDID, never `booted`) to see
+# the reversal; a screenshot alone won't show the mid-route direction change.
+appId: dev.example.companion
+---
+- launchApp
+- waitForAnimationToEnd
+- openLink: companion://explore?demo=turn-back
+# iOS confirms a custom-scheme link opened from outside the app
+- tapOn:
+    text: 'Open'
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 9000
+- takeScreenshot: maestro/out/ai2-around-interrupt-resumed

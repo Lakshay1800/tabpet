@@ -1,0 +1,16 @@
+# Slow drag along the floating bar: the companion chases, catches the finger, and
+# rests seated at it. Pair with `simctl io booted recordVideo` for frames.
+appId: dev.example.companion
+---
+- launchApp
+- waitForAnimationToEnd
+- tapOn: 'Explore'
+- waitForAnimationToEnd
+- takeScreenshot: maestro/out/d1-explore-seated
+- swipe:
+    start: 32%, 94%
+    end: 44%, 94%
+    duration: 3000
+- takeScreenshot: maestro/out/d2-after-release
+- waitForAnimationToEnd
+- takeScreenshot: maestro/out/d3-settled

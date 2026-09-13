@@ -1,0 +1,31 @@
+{
+  "name": "tabpet-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p packages/tabpet --noEmit && tsc -p apps/example --noEmit",
+    "test": "node scripts/run-tests.mjs",
+    "lint": "oxlint",
+    "fmt": "oxfmt .",
+    "fmt:check": "oxfmt --check .",
+    "check": "bun run leak-check && bun run typecheck && bun run fmt:check && bun run lint && bun run test",
+    "leak-check": "bash tools/check-no-private-strings.sh",
+    "example": "cd apps/example && bunx expo start",
+    "knip": "knip"
+  },
+  "devDependencies": {
+    "@types/pngjs": "^6.0.5",
+    "knip": "^6.32.2",
+    "oxfmt": "^0.61.0",
+    "oxlint": "1.78.0",
+    "pngjs": "^7.0.0",
+    "tsx": "^4.23.1",
+    "typescript": "~6.0.3",
+    "ultracite": "7.9.4"
+  },
+  "packageManager": "bun@1.3.14"
+}

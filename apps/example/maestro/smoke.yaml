@@ -1,0 +1,46 @@
+appId: dev.example.companion
+---
+- launchApp
+- waitForAnimationToEnd
+- takeScreenshot: maestro/out/m1-home
+- tapOn: 'Explore'
+- takeScreenshot: maestro/out/m2-explore-run
+- waitForAnimationToEnd
+- takeScreenshot: maestro/out/m3-explore-seated
+- tapOn: 'Start a task'
+- takeScreenshot: maestro/out/m4-busy
+- tapOn: 'Activity'
+- waitForAnimationToEnd
+- takeScreenshot: maestro/out/m4b-activity
+- tapOn: 'Settings'
+- waitForAnimationToEnd
+- takeScreenshot: maestro/out/m5-settings
+- tapOn: 'Choose cat'
+- waitForAnimationToEnd
+- takeScreenshot: maestro/out/m6-cat
+- tapOn: 'Home'
+- waitForAnimationToEnd
+- takeScreenshot: maestro/out/m7-home-cat
+- tapOn: 'Settings'
+- waitForAnimationToEnd
+- tapOn: 'Choose turtle'
+- waitForAnimationToEnd
+- takeScreenshot: maestro/out/m8-turtle
+- tapOn: 'Choose raccoon'
+- waitForAnimationToEnd
+- takeScreenshot: maestro/out/m9-raccoon
+- tapOn: 'Choose bird'
+- waitForAnimationToEnd
+- takeScreenshot: maestro/out/m10-bird
+- tapOn: 'Library'
+- takeScreenshot: maestro/out/m11-bird-flight
+- waitForAnimationToEnd
+- takeScreenshot: maestro/out/m12-bird-seated
+- tapOn: 'Settings'
+- waitForAnimationToEnd
+- tapOn: 'Choose squirrel'
+- waitForAnimationToEnd
+- takeScreenshot: maestro/out/m13-squirrel
+- tapOn: 'Home'
+- waitForAnimationToEnd
+- takeScreenshot: maestro/out/m14-squirrel-home
