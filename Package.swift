@@ -20,7 +20,8 @@ let package = Package(
         .testTarget(
             name: "TabPetCoreTests",
             dependencies: ["TabPetCore"],
-            path: "swift/Tests/TabPetCoreTests"
+            path: "swift/Tests/TabPetCoreTests",
+            swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
         ),
         // Never "TabPet" alone: the Expo pod's Swift module already claims that name.
         .target(

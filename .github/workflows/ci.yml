@@ -27,6 +27,7 @@ jobs:
       - run: bun run fmt:check
       - run: bun run lint
       - run: bun run test
+      - run: bun run conformance --check
       - run: cd apps/example && bunx expo export --platform ios --output-dir dist/ios
 
   swift:
