@@ -35,17 +35,5 @@ let package = Package(
             dependencies: ["TabPetUIKit"],
             path: "swift/Tests/TabPetUIKitTests"
         ),
-        // Never "TabPet" alone: the Expo pod's Swift module already claims that name.
-        .target(
-            name: "TabPetUIKit",
-            dependencies: ["TabPetCore"],
-            path: "swift/Sources/TabPetUIKit",
-            swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
-        ),
-        .testTarget(
-            name: "TabPetUIKitTests",
-            dependencies: ["TabPetUIKit"],
-            path: "swift/Tests/TabPetUIKitTests"
-        ),
     ]
 )
