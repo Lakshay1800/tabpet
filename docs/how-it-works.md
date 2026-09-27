@@ -10,7 +10,7 @@ Native code walks the `UITabBar` and reports each item's glyph center and the ba
 
 ## Running
 
-A tab change plans a run from the last seat to the new one and drives it with a duration-parametrized spring; the finger chase uses a shorter, stiffer spring and a leash so the companion only runs toward the finger, never past it. Every spring completion is generation-gated: Reanimated 4 can report `finished` seconds late, and a stale completion must not re-seat a companion that has already moved on.
+A tab change plans a run from the last seat to the new one and drives it with a duration-parametrized spring; the finger chase uses a shorter, stiffer spring and a leash so the companion only runs toward the finger, never past it. Every spring completion is generation-gated: Reanimated 4 can report `finished` seconds late, and a stale completion must not re-seat a companion that has already moved on. Released over a different tab, the companion waits only when the bar's own scrubbing pill or the host will actually select that slot: it heads there right away and waits briefly for the selection to land before giving up and heading home, rather than starting home and reversing once the new tab arrives. Unless the host uses `barScrub: 'exclusive'` with `onDragRelease`, a classic bar with no pill, or a custom bar, gets a chase straight home instead - nothing is ever going to select that slot for it to wait on. With one perch per screen he still heads to the release slot and waits, but the next screen's perch cannot know he arrived by a drag, so it plays the ordinary tap chase.
 
 ## The around route
 
