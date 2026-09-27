@@ -16,3 +16,5 @@ _scratch/
 *.tgz
 **/maestro/out/
 tools/.leak-pattern
+.build/
+.swiftpm/

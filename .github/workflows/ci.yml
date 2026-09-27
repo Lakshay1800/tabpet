@@ -28,3 +28,20 @@ jobs:
       - run: bun run lint
       - run: bun run test
       - run: cd apps/example && bunx expo export --platform ios --output-dir dist/ios
+
+  swift:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: swift build
+      - run: swift test
+
+  swift-uikit:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: xcodebuild -version
+      - run: bash tools/swift-sim-test.sh
