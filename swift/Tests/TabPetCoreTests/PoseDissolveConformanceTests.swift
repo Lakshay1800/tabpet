@@ -36,12 +36,27 @@ final class PoseDissolveConformanceTests: XCTestCase {
         print("PoseDissolveConformanceTests: \(casesRun) conformance cases passed")
     }
 
+    /// pins POSE_FADE_MS against the fixture's own copy.
+    func testPoseDissolveConstantsMatchModule() throws {
+        let fixture = try ConformanceFixtureLoader.load("pose-dissolve")
+        XCTAssertEqual(try fixture.constant("POSE_FADE_MS"), PoseDissolve.POSE_FADE_MS)
+    }
+
     private func runCase(_ c: ConformanceCase) throws {
         switch c.fn {
         case "planPoseDissolve":
             let previous = try requirePose(c.args["previous"], "previous")
             let next = try requirePose(c.args["next"], "next")
-            let reduceMotion = c.args["opts"]?["reduceMotion"]?.boolValue ?? false
+            // opts itself, and opts.reduceMotion within it, are each optional -
+            // missing/null at either level means false; a wrongly-typed
+            // reduceMotion still throws rather than silently reading as false.
+            let optsJSON = c.args["opts"]
+            let reduceMotion: Bool
+            if let optsJSON, !optsJSON.isNull {
+                reduceMotion = try optsJSON.optionalBool("reduceMotion", "opts.reduceMotion") ?? false
+            } else {
+                reduceMotion = false
+            }
             let actual = PoseDissolve.planPoseDissolve(previous: previous, next: next, reduceMotion: reduceMotion)
             try assertPlanMatches(actual, c.expect, rule: c.compare, c)
 

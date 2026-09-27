@@ -33,6 +33,7 @@ interface FixtureCase {
 interface FixtureFile {
   module: string;
   source: string;
+  constants: Record<string, unknown>;
   cases: FixtureCase[];
 }
 
@@ -187,6 +188,19 @@ const invokers: Record<string, Record<string, (a: any) => unknown>> = {
     applyFocusBlur: (a) => Handoff.applyFocusBlur(a.handoff, a.args),
     applyDragTrack: (a) => Handoff.applyDragTrack(a.handoff, a.glassTarget),
     applyDragRelease: (a) => Handoff.applyDragRelease(a.handoff, a.args),
+    planDragRelease: (a) => Handoff.planDragRelease(a),
+    selectsOnRelease: (a) => Handoff.selectsOnRelease(a),
+    planApproach: (a) =>
+      a.speedPtS === null
+        ? Handoff.planApproach(a.distancePt)
+        : Handoff.planApproach(a.distancePt, a.speedPtS),
+    isFarGrab: (a) => Handoff.isFarGrab(a.gapPt),
+    planFarSample: (a) => Handoff.planFarSample(a),
+    stepToward: (a) => Handoff.stepToward(a.current, a.target, a.speedPtS, a.dtMs),
+    sanitizeRunSpeed: (a) => Handoff.sanitizeRunSpeed(a.speed === null ? undefined : a.speed),
+    focusFromSlot: (a) => Handoff.focusFromSlot(a.handoffLastTab, a.arrivedByDrag, a.focusedSlot),
+    initialReleaseState: () => Handoff.initialReleaseState(),
+    reduceRelease: (a) => Handoff.reduceRelease(a.state, a.event),
   },
   'pose-dissolve': {
     planPoseDissolve: (a) =>
@@ -232,6 +246,16 @@ const EXPECTED_COMPARE: Record<string, Compare> = {
   applyFocusBlur: 'exact',
   applyDragTrack: 'exact',
   applyDragRelease: 'exact',
+  planDragRelease: 'exact',
+  selectsOnRelease: 'exact',
+  planApproach: 'exact',
+  isFarGrab: 'exact',
+  planFarSample: 'exact',
+  stepToward: 'exact',
+  sanitizeRunSpeed: 'exact',
+  focusFromSlot: 'exact',
+  initialReleaseState: 'exact',
+  reduceRelease: 'exact',
   planPoseDissolve: 'exact',
   poseDissolveApplyOrder: 'exact',
   shouldResetIncomingFrame: 'exact',
@@ -266,6 +290,23 @@ function main(): void {
     ok(moduleInvokers, `no invoker table registered for module ${fixture.module}`);
     const ns = namespaces[fixture.module];
     ok(ns, `no export namespace registered for module ${fixture.module}`);
+
+    // every pinned constant must match this module's own export exactly -
+    // bit-identical, since these are literal numbers, never a trig result
+    const constantNames = Object.keys(fixture.constants);
+    ok(constantNames.length > 0, `${fixture.module}: fixture carries no pinned constants`);
+    for (const name of constantNames) {
+      const expected = decodeValue(fixture.constants[name]) as number;
+      const actual = ns[name];
+      ok(
+        typeof actual === 'number',
+        `${fixture.module}: constant ${name} is not exported as a number by the module`
+      );
+      ok(
+        numbersEqual(actual as number, expected, 'exact'),
+        `${fixture.module}: constant ${name} mismatch: module=${actual} fixture=${expected}`
+      );
+    }
 
     const exported = exportedPureFunctionNames(ns);
     const covered = new Set(fixture.cases.map((c) => c.fn));

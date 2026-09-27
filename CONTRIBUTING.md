@@ -50,7 +50,7 @@ With a pattern configured the check covers tracked files and new files that are 
 
 ## Conformance Fixtures
 
-`conformance/*.json` (one file per module: geometry, around, handoff, pose-dissolve) are golden test vectors generated from the TypeScript pure functions in `packages/tabpet/src/{perch-geometry,perch-around,perch-handoff,pose-dissolve}.ts`. Both the TypeScript test suite (`packages/tabpet/src/conformance.test.ts`) and the Swift test suite (`swift/Tests/TabPetCoreTests/GeometryConformanceTests.swift`, geometry only for now) replay the same cases, so the two implementations cannot silently drift apart.
+`conformance/*.json` (one file per module: geometry, around, handoff, pose-dissolve) are golden test vectors generated from the TypeScript pure functions in `packages/tabpet/src/{perch-geometry,perch-around,perch-handoff,pose-dissolve}.ts`. Both the TypeScript test suite (`packages/tabpet/src/conformance.test.ts`) and the Swift test suite (`swift/Tests/TabPetCoreTests/GeometryConformanceTests.swift`, `AroundConformanceTests.swift`, `HandoffConformanceTests.swift`, `PoseDissolveConformanceTests.swift` - all four modules) replay the same cases, so the two implementations cannot silently drift apart.
 
 These files are **generated and never hand-edited**. Regenerate with:
 
@@ -66,12 +66,14 @@ bun run conformance
 
 Every floating-point number in a fixture, in both arguments and expected values, is wrapped as `{"bits": "<16 hex digits>", "value": <number-or-"NaN"/"Infinity"/"-Infinity"/"-0">}`. `bits` is the authoritative IEEE 754 double bit pattern (JSON numbers cannot carry `-0`, `NaN`, or the infinities, all of which these functions return); `value` is only for human readers. A `bits` string that is not exactly 16 lowercase hex digits is a decode error in both readers, never a silent zero.
 
+Each file also carries a top-level `"constants"` object: every numeric constant its source module exports, wrapped in the same `{bits, value}` format as any case argument or expectation. Both readers check every one of them against their own module's copy of the same constant (bit-identical - these are literal numbers, never a trig result), so a constant drifting out of sync between the TypeScript and the Swift port fails loudly instead of only showing up later as an unrelated case mismatch.
+
 Each case carries a `"compare"` rule, decided per function by whether its result passes through `Math.sin`, `Math.cos`, `Math.atan2`, or `Math.hypot`; the TypeScript reader pins the expected mode per function in a table and fails if a fixture disagrees, and both readers reject any `"compare"` string other than the two below:
 
 - `"exact"` - bit-identical (any NaN equals any NaN).
 - `"tolerance"` - if either value is NaN, they match only when both are NaN; else if either value is infinite, they match only when they are equal; else two doubles match when `|a - b| <= 1e-9 * max(1, |a|, |b|)`.
 
-The Swift coverage list (`knownGeometryFunctions` in `GeometryConformanceTests.swift`) is kept in sync by hand, since Swift has no runtime export list to diff against. The TypeScript reader (`conformance.test.ts`) is the one that detects a new export with no fixture coverage, by enumerating the module's actual namespace.
+Each Swift test file keeps its own coverage list by hand (`knownGeometryFunctions`, `knownAroundFunctions`, `knownHandoffFunctions`, `knownPoseDissolveFunctions`), since Swift has no runtime export list to diff against. The TypeScript reader (`conformance.test.ts`) is the one that detects a new export with no fixture coverage, by enumerating the module's actual namespace.
 
 ## Local consumers
 

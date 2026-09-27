@@ -41,6 +41,20 @@ final class GeometryConformanceTests: XCTestCase {
         print("GeometryConformanceTests: \(casesRun) conformance cases passed")
     }
 
+    /// pins every numeric constant perch-geometry.ts exports against the
+    /// fixture's own copy.
+    func testGeometryConstantsMatchModule() throws {
+        let fixture = try ConformanceFixtureLoader.load("geometry")
+        XCTAssertEqual(try fixture.constant("PERCH_SIZE"), PerchGeometry.PERCH_SIZE)
+        XCTAssertEqual(try fixture.constant("BAR_MARGIN_H"), PerchGeometry.BAR_MARGIN_H)
+        XCTAssertEqual(try fixture.constant("CHASE_TRAIL"), PerchGeometry.CHASE_TRAIL)
+        XCTAssertEqual(try fixture.constant("FACING_DEADBAND"), PerchGeometry.FACING_DEADBAND)
+        XCTAssertEqual(try fixture.constant("CHASE_SLACK"), PerchGeometry.CHASE_SLACK)
+        XCTAssertEqual(try fixture.constant("TRAVERSE_SPEED_PT_S"), PerchGeometry.TRAVERSE_SPEED_PT_S)
+        XCTAssertEqual(try fixture.constant("MIN_TRAVERSE_MS"), PerchGeometry.MIN_TRAVERSE_MS)
+        XCTAssertEqual(try fixture.constant("MAX_TRAVERSE_MS"), PerchGeometry.MAX_TRAVERSE_MS)
+    }
+
     /// direct unit checks of the tolerance rule, independent of any fixture.
     func testToleranceRule() {
         let checks: [(Double, Double, Bool)] = [

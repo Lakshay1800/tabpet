@@ -39,6 +39,14 @@
  * Skipped (module-state, not pure): perch-handoff's readPerchHandoff,
  * writePerchHandoff, resetPerchHandoffForTest.
  *
+ * Constants: each output file also carries a top-level "constants" object -
+ * every numeric constant its source module exports, wrapped in the same
+ * {bits, value} format as any case argument/expectation. Both readers
+ * (conformance.test.ts and the Swift *ConformanceTests.swift files) check
+ * every one of them against their own module's copy, so a constant drifting
+ * out of sync between the TypeScript and the Swift port fails loudly instead
+ * of only showing up as an unrelated case mismatch downstream.
+ *
  * Compare-rule table (why): a function is "tolerance" only if a JS engine
  * could legitimately round its last bit differently from another - i.e. its
  * result passes through Math.sin/cos/atan2/hypot. Everything else is
@@ -74,6 +82,16 @@
  * | perch-handoff   | applyFocusBlur     | exact     | object spread only |
  * | perch-handoff   | applyDragTrack     | exact     | object spread only |
  * | perch-handoff   | applyDragRelease   | exact     | object spread only |
+ * | perch-handoff   | selectsOnRelease   | exact     | boolean logic only |
+ * | perch-handoff   | planDragRelease    | exact     | comparisons only |
+ * | perch-handoff   | planApproach       | exact     | delegates to shouldSnapToSeat/traverseDurationMs |
+ * | perch-handoff   | isFarGrab          | exact     | comparison only |
+ * | perch-handoff   | planFarSample      | exact     | arithmetic + comparisons, delegates to chaseTargetX |
+ * | perch-handoff   | stepToward         | exact     | arithmetic + comparisons only |
+ * | perch-handoff   | sanitizeRunSpeed   | exact     | comparisons only |
+ * | perch-handoff   | focusFromSlot      | exact     | branch only |
+ * | perch-handoff   | initialReleaseState| exact     | constant |
+ * | perch-handoff   | reduceRelease      | exact     | branch only |
  * | pose-dissolve   | planPoseDissolve   | exact     | branch only |
  * | pose-dissolve   | poseDissolveApplyOrder | exact | branch only |
  * | pose-dissolve   | shouldResetIncomingFrame | exact | branch only |
@@ -90,6 +108,8 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 
 import {
+  AROUND_MIN_SLOT_COUNT,
+  AROUND_SPEED_PT_S,
   isEndToEnd,
   shouldRouteAround,
   routePivot,
@@ -101,6 +121,13 @@ import {
 } from '../packages/tabpet/src/perch-around';
 import {
   PERCH_SIZE,
+  BAR_MARGIN_H,
+  CHASE_TRAIL,
+  FACING_DEADBAND,
+  CHASE_SLACK,
+  TRAVERSE_SPEED_PT_S,
+  MIN_TRAVERSE_MS,
+  MAX_TRAVERSE_MS,
   tabCenterX,
   nearestSlot,
   glassTargetX,
@@ -112,6 +139,9 @@ import {
   seatedFootPad,
 } from '../packages/tabpet/src/perch-geometry';
 import {
+  RELEASE_GRACE_MS,
+  FAR_GRAB_PT,
+  FAR_STEP_MAX_DT_MS,
   planRunSeatY,
   planStartSeatY,
   planMountSeatY,
@@ -121,9 +151,20 @@ import {
   applyFocusBlur,
   applyDragTrack,
   applyDragRelease,
+  planDragRelease,
+  selectsOnRelease,
+  planApproach,
+  isFarGrab,
+  planFarSample,
+  stepToward,
+  sanitizeRunSpeed,
+  focusFromSlot,
+  initialReleaseState,
+  reduceRelease,
 } from '../packages/tabpet/src/perch-handoff';
 import {
   PUP_POSES,
+  POSE_FADE_MS,
   planPoseDissolve,
   poseDissolveApplyOrder,
   shouldResetIncomingFrame,
@@ -239,6 +280,28 @@ function encFocusPlan(plan) {
     commitsHandoff: plan.commitsHandoff,
   };
 }
+
+// plain objects with a "kind"/"type" string - no wrapped floats live in any
+// of these three unions, so no encodeNumber is needed here
+const encDragReleasePlan = (r) =>
+  r.kind === 'home' ? { kind: 'home' } : { kind: 'await', slot: r.slot };
+
+const encApproachPlan = (r) =>
+  r.kind === 'spring'
+    ? { kind: 'spring' }
+    : { kind: 'run', durationMs: encodeNumber(r.durationMs) };
+
+const encFarSamplePlan = (r) =>
+  r.kind === 'end'
+    ? { kind: 'end' }
+    : { kind: 'track', target: encodeNumber(r.target), facing: r.facing };
+
+const encReleasePending = (p) =>
+  p === null ? null : { fromSlot: p.fromSlot, slot: p.slot, generation: p.generation };
+
+const encReleaseState = (s) => ({ pending: encReleasePending(s.pending), arrival: s.arrival });
+
+const encReduceReleaseResult = (r) => ({ state: encReleaseState(r.state), effect: r.effect });
 
 function encPoseDissolvePlan(plan) {
   const out = {};
@@ -1485,6 +1548,25 @@ function encFocusArgs(a) {
   };
 }
 
+/** planMountSeatY's TypeScript type has no holdRun field - unlike
+ *  encFocusArgs above, this omits the key entirely rather than emitting it
+ *  as null, so the fixture only ever carries the fields the function's own
+ *  type declares. The MUST-HIT rows below still pass the full args object
+ *  (holdRun included) to the real planMountSeatY call, since it forwards to
+ *  planFocus internally and holdRun does affect that result - only the
+ *  wire-format args, not the computed expectation, drop the field. */
+function encFocusArgsForMountSeatY(a) {
+  return {
+    tab: a.tab,
+    screenWidth: encodeNumber(a.screenWidth),
+    bottomExtra: encodeNumber(a.bottomExtra),
+    transientSlot: a.transientSlot,
+    reduceMotion: a.reduceMotion,
+    slotCount: a.slotCount,
+    slotCenters: a.slotCenters === undefined ? null : encArr(a.slotCenters),
+  };
+}
+
 // planFocus's holdRun branch and the strict-less-than snap threshold,
 // worked out from tabCenterX/shouldSnapToSeat rather than guessed. Target is
 // tab 1 of 5 on a 402pt screen: tabCenterX(1, 402, 5) === 100. A handoff at
@@ -1570,7 +1652,7 @@ function genPlanMountSeatY() {
     const result = planMountSeatY(handoff, args);
     cases.push({
       fn: 'planMountSeatY',
-      args: { handoff: encHandoff(handoff), args: encFocusArgs(args) },
+      args: { handoff: encHandoff(handoff), args: encFocusArgsForMountSeatY(args) },
       expect: encodeNumber(result),
       compare: 'exact',
     });
@@ -1769,6 +1851,528 @@ function genApplyDragRelease() {
   );
 }
 
+// full truth table (phase x releaseSlot!==currentSlot x selectsOnRelease) -
+// mirrors perch-handoff.test.ts's testPlanDragReleaseTable
+const PLAN_DRAG_RELEASE_MUST_HIT = [
+  ['ended', 3, 2, true],
+  ['ended', 3, 2, false],
+  ['ended', 2, 2, true],
+  ['ended', 2, 2, false],
+  ['ended', 1, 2, true], // release slot BELOW the current slot also awaits it
+  ['cancelled', 3, 2, true],
+  ['cancelled', 3, 2, false],
+  ['cancelled', 2, 2, true],
+  ['cancelled', 2, 2, false],
+];
+
+function genPlanDragRelease() {
+  return buildCases(
+    'planDragRelease',
+    'exact',
+    PLAN_DRAG_RELEASE_MUST_HIT,
+    [],
+    ([phase, releaseSlot, currentSlot, selectsOnReleaseArg]) =>
+      planDragRelease({ phase, releaseSlot, currentSlot, selectsOnRelease: selectsOnReleaseArg }),
+    ([phase, releaseSlot, currentSlot, selectsOnReleaseArg]) => ({
+      phase,
+      releaseSlot,
+      currentSlot,
+      selectsOnRelease: selectsOnReleaseArg,
+    }),
+    encDragReleasePlan,
+    {
+      home: ({ r }) => r.kind === 'home',
+      await: ({ r }) => r.kind === 'await',
+      'await-release-below-current': ({ a, r }) => a[1] < a[2] && r.kind === 'await',
+    }
+  );
+}
+
+// full truth table (barScrub x hasOnDragRelease x nativePill) - mirrors
+// perch-handoff.test.ts's testSelectsOnReleaseAllCombinations
+const SELECTS_ON_RELEASE_MUST_HIT = [
+  ['native', false, false],
+  ['native', false, true],
+  ['native', true, false],
+  ['native', true, true],
+  ['exclusive', false, false],
+  ['exclusive', false, true],
+  ['exclusive', true, false],
+  ['exclusive', true, true],
+];
+
+function genSelectsOnRelease() {
+  return buildCases(
+    'selectsOnRelease',
+    'exact',
+    SELECTS_ON_RELEASE_MUST_HIT,
+    [],
+    ([barScrub, hasOnDragRelease, nativePill]) =>
+      selectsOnRelease({ barScrub, hasOnDragRelease, nativePill }),
+    ([barScrub, hasOnDragRelease, nativePill]) => ({ barScrub, hasOnDragRelease, nativePill }),
+    (r) => r,
+    { true: ({ r }) => r === true, false: ({ r }) => r === false }
+  );
+}
+
+// both kinds, the 54pt edge (both signs), the floor, the raw-rate middle, the
+// ceiling, a speed override, and non-finite distance - worked out from
+// perch-handoff.test.ts's testPlanApproach, not sampled
+const PLAN_APPROACH_MUST_HIT = [
+  [53.9, undefined], // spring: just under one glass width
+  [54, undefined], // run: exactly one glass width (shouldSnapToSeat is strict less-than)
+  [-54, undefined], // run: same edge, negative sign
+  [600, undefined], // run: mid-distance, unclamped raw rate
+  [100_000, undefined], // run: clamped to the 2200ms ceiling
+  [200, 100], // run: a speed override stretches the floor/ceiling
+  [200, 0], // speed override 0
+  [200, -100], // speed override negative
+  [200, Number.NaN], // speed override NaN
+  [200, Infinity], // speed override Infinity
+  // distance/speed worked out so the STRETCHED floor is what clamps: stretch
+  // 340/170 = 2, raw = 102/170*1000 = 600, between the unstretched floor
+  // (400) and the stretched one (800) - only the stretched floor catches it
+  [102, 170],
+  // distance/speed worked out so the STRETCHED ceiling is what clamps: stretch
+  // 340/680 = 0.5, raw = 1020/680*1000 = 1500, between the stretched ceiling
+  // (1100) and the unstretched one (2200) - only the stretched ceiling catches it
+  [1020, 680],
+  ...NON_FINITE.map((d) => [d, undefined]),
+];
+
+function encPlanApproachArgs([distancePt, speedPtS]) {
+  return { distancePt: encodeNumber(distancePt), speedPtS: encOrNull(speedPtS) };
+}
+
+function genPlanApproach() {
+  return buildCases(
+    'planApproach',
+    'exact',
+    PLAN_APPROACH_MUST_HIT,
+    [],
+    ([distancePt, speedPtS]) =>
+      speedPtS === undefined ? planApproach(distancePt) : planApproach(distancePt, speedPtS),
+    encPlanApproachArgs,
+    encApproachPlan,
+    {
+      spring: ({ r }) => r.kind === 'spring',
+      run: ({ r }) => r.kind === 'run',
+      'edge-54-runs': ({ a, r }) => Math.abs(a[0]) === 54 && r.kind === 'run',
+      'floor-clamped': ({ r }) => r.kind === 'run' && r.durationMs === 400,
+      'ceiling-clamped': ({ r }) => r.kind === 'run' && r.durationMs === 2200,
+      // outcome, not input: a speed override only counts as this class if it
+      // actually changed the duration from what the default speed would give
+      'speed-override': ({ a, r }) => {
+        const [distancePt, speedPtS] = a;
+        if (speedPtS === undefined || r.kind !== 'run') {
+          return false;
+        }
+        const atDefault = planApproach(distancePt);
+        return atDefault.kind === 'run' && r.durationMs !== atDefault.durationMs;
+      },
+      // the stretched floor/ceiling, not the constant MIN/MAX_TRAVERSE_MS,
+      // is what clamped this result
+      'stretched-floor-clamps': ({ a, r }) => {
+        const [, speedPtS] = a;
+        if (
+          speedPtS === undefined ||
+          !Number.isFinite(speedPtS) ||
+          speedPtS === 0 ||
+          r.kind !== 'run'
+        ) {
+          return false;
+        }
+        const stretch = TRAVERSE_SPEED_PT_S / speedPtS;
+        const stretchedFloor = MIN_TRAVERSE_MS * stretch;
+        return stretchedFloor !== MIN_TRAVERSE_MS && r.durationMs === stretchedFloor;
+      },
+      'stretched-ceiling-clamps': ({ a, r }) => {
+        const [, speedPtS] = a;
+        if (
+          speedPtS === undefined ||
+          !Number.isFinite(speedPtS) ||
+          speedPtS === 0 ||
+          r.kind !== 'run'
+        ) {
+          return false;
+        }
+        const stretch = TRAVERSE_SPEED_PT_S / speedPtS;
+        const stretchedCeiling = MAX_TRAVERSE_MS * stretch;
+        return stretchedCeiling !== MAX_TRAVERSE_MS && r.durationMs === stretchedCeiling;
+      },
+      'non-finite input': ({ a }) => !Number.isFinite(a[0]),
+    }
+  );
+}
+
+// PERCH_SIZE=54: the edge and both signs
+const IS_FAR_GRAB_MUST_HIT = [54, -54, 54.1, -54.1, 0, ...NON_FINITE];
+
+function genIsFarGrab() {
+  return buildCases(
+    'isFarGrab',
+    'exact',
+    IS_FAR_GRAB_MUST_HIT,
+    [],
+    (gapPt) => isFarGrab(gapPt),
+    (gapPt) => ({ gapPt: encodeNumber(gapPt) }),
+    (r) => r,
+    {
+      true: ({ r }) => r === true,
+      false: ({ r }) => r === false,
+      'non-finite input': ({ a }) => !Number.isFinite(a),
+    }
+  );
+}
+
+// CHASE_TRAIL=18, CHASE_SLACK=4: TRAIL+SLACK=22 - the not-chasing edge, both
+// signs, both screen-edge clamps and non-finite input, worked out from
+// perch-handoff.test.ts's testPlanFarSample
+const PLAN_FAR_SAMPLE_SCREEN_WIDTH = 402;
+const PLAN_FAR_SAMPLE_MUST_HIT = [
+  [122, 100, PLAN_FAR_SAMPLE_SCREEN_WIDTH], // end: gap exactly +22 (inside the not-chasing edge)
+  [122.1, 100, PLAN_FAR_SAMPLE_SCREEN_WIDTH], // track: just past +22, facing right
+  [78, 100, PLAN_FAR_SAMPLE_SCREEN_WIDTH], // end: gap exactly -22
+  [77.9, 100, PLAN_FAR_SAMPLE_SCREEN_WIDTH], // track: just past -22, facing left
+  [300, 0, PLAN_FAR_SAMPLE_SCREEN_WIDTH], // track: a big positive gap
+  [10, -20, PLAN_FAR_SAMPLE_SCREEN_WIDTH], // track: clamped to the left screen edge
+  [345, 400, PLAN_FAR_SAMPLE_SCREEN_WIDTH], // track: clamped to the right screen edge
+  ...NON_FINITE.map((glassX) => [glassX, 100, PLAN_FAR_SAMPLE_SCREEN_WIDTH]),
+  ...NON_FINITE.map((currentX) => [122.1, currentX, PLAN_FAR_SAMPLE_SCREEN_WIDTH]),
+  // a second screen width entirely, not the one every other row above shares
+  [500, 0, 800],
+  // a narrow screen where both clamps meet: screenWidth === PERCH_SIZE, so
+  // min(max(x, 0), screenWidth - PERCH_SIZE) collapses to min(max(x,0), 0) - 0 either way
+  [200, 0, PERCH_SIZE],
+];
+
+function genPlanFarSample() {
+  return buildCases(
+    'planFarSample',
+    'exact',
+    PLAN_FAR_SAMPLE_MUST_HIT,
+    [],
+    ([glassX, currentX, screenWidth]) => planFarSample({ glassX, currentX, screenWidth }),
+    ([glassX, currentX, screenWidth]) => ({
+      glassX: encodeNumber(glassX),
+      currentX: encodeNumber(currentX),
+      screenWidth: encodeNumber(screenWidth),
+    }),
+    encFarSamplePlan,
+    {
+      end: ({ r }) => r.kind === 'end',
+      'track-facing-right': ({ r }) => r.kind === 'track' && r.facing === 1,
+      'track-facing-left': ({ r }) => r.kind === 'track' && r.facing === -1,
+      'clamped-left-edge': ({ r }) => r.kind === 'track' && r.target === 0,
+      'clamped-right-edge': ({ a, r }) => r.kind === 'track' && r.target === a[2] - PERCH_SIZE,
+      'second-screen-width': ({ a }) => a[2] !== PLAN_FAR_SAMPLE_SCREEN_WIDTH,
+      'both-clamps-meet': ({ a, r }) => a[2] === PERCH_SIZE && r.kind === 'track' && r.target === 0,
+      'non-finite input': ({ a }) => !Number.isFinite(a[0]) || !Number.isFinite(a[1]),
+    }
+  );
+}
+
+// FAR_STEP_MAX_DT_MS=34: a normal step each direction, arrival exactly on the
+// target, dt below 0, dt above the cap, speed 0 and negative, and every
+// argument non-finite in turn - worked out from perch-handoff.test.ts's
+// testStepToward/testStepTowardTotalOnNonFiniteAndBadSpeed, not sampled
+const STEP_TOWARD_MUST_HIT = [
+  [0, 300, 340, 16], // normal step, rightward
+  [100, 50, 340, 16], // normal step, leftward
+  [298, 300, 340, 16], // a step past the target lands exactly on it
+  [0, 5.44, 340, 16], // step exactly equal to the remaining distance also arrives (340*16/1000 === 5.44)
+  [50, 50, 340, 16], // already at the target
+  [50, 300, 340, -5], // dt below 0 clamps to 0, no step
+  [0, 300, 340, 1000], // dt above the cap clamps to FAR_STEP_MAX_DT_MS (34)
+  [50, 50, 0, 16], // speed 0 at the target: the guard, not zero distance, decides
+  [10, 300, 0, 16], // speed 0 short of the target
+  [10, 300, -5, 16], // negative speed
+  [Number.NaN, 300, 340, 16],
+  [10, Number.NaN, 340, 16],
+  [10, Number.POSITIVE_INFINITY, 340, 16],
+  [10, 300, Number.NaN, 16],
+  [10, 300, Number.POSITIVE_INFINITY, 16],
+  [10, 300, 340, Number.NaN],
+  [10, 300, 340, Number.POSITIVE_INFINITY],
+  [Number.POSITIVE_INFINITY, 300, 340, 16], // current as Infinity
+  [Number.NEGATIVE_INFINITY, 300, 340, 16], // current as -Infinity
+  [10, Number.NEGATIVE_INFINITY, 340, 16], // target as -Infinity
+  [10, 300, Number.NEGATIVE_INFINITY, 16], // speed as -Infinity
+  [10, 300, 340, Number.NEGATIVE_INFINITY], // dt as -Infinity
+  [-0, 300, 340, 0], // current -0 with dt 0
+  [-0, 300, 340, -0], // current -0 with dt -0
+];
+
+function genStepToward() {
+  return buildCases(
+    'stepToward',
+    'exact',
+    STEP_TOWARD_MUST_HIT,
+    [],
+    ([current, target, speedPtS, dtMs]) => stepToward(current, target, speedPtS, dtMs),
+    ([current, target, speedPtS, dtMs]) => ({
+      current: encodeNumber(current),
+      target: encodeNumber(target),
+      speedPtS: encodeNumber(speedPtS),
+      dtMs: encodeNumber(dtMs),
+    }),
+    (r) => ({ x: encodeNumber(r.x), arrived: r.arrived }),
+    {
+      'arrived-true': ({ r }) => r.arrived === true,
+      'arrived-false': ({ r }) => r.arrived === false,
+      'step-rightward': ({ a, r }) => a[1] > a[0] && !r.arrived,
+      'step-leftward': ({ a, r }) => a[1] < a[0] && !r.arrived,
+      'negative-dt-no-move': ({ a, r }) => a[3] < 0 && r.x === a[0],
+      // outcome, not input: a finite dt above the cap must produce a step of
+      // exactly speed * 34 / 1000, not the raw dt's step
+      'dt-above-cap-clamped': ({ a, r }) => {
+        const [current, , speedPtS, dtMs] = a;
+        if (!Number.isFinite(dtMs) || dtMs <= 34 || r.arrived) {
+          return false;
+        }
+        const clampedStep = (speedPtS * 34) / 1000;
+        return Math.abs(r.x - current) === clampedStep;
+      },
+      'speed-zero-or-negative': ({ a }) => a[2] <= 0,
+      'non-finite input': ({ a }) => a.some((v) => !Number.isFinite(v)),
+    }
+  );
+}
+
+// a valid speed, 0, negative, NaN, both infinities, undefined - mirrors
+// perch-handoff.test.ts's testSanitizeRunSpeed
+const SANITIZE_RUN_SPEED_MUST_HIT = [
+  340,
+  200,
+  5000,
+  0,
+  -0,
+  -5,
+  Number.NaN,
+  Infinity,
+  -Infinity,
+  undefined,
+];
+
+function genSanitizeRunSpeed() {
+  return buildCases(
+    'sanitizeRunSpeed',
+    'exact',
+    SANITIZE_RUN_SPEED_MUST_HIT,
+    [],
+    (speed) => sanitizeRunSpeed(speed),
+    (speed) => ({ speed: encOrNull(speed) }),
+    encodeNumber,
+    {
+      'valid speed passthrough': ({ a, r }) =>
+        a !== undefined && Number.isFinite(a) && a > 0 && r === a,
+      'falls back to the default': ({ r }) => r === 340, // TRAVERSE_SPEED_PT_S
+    }
+  );
+}
+
+// both branches
+const FOCUS_FROM_SLOT_MUST_HIT = [
+  [0, true, 3],
+  [0, false, 3],
+  [4, true, 2],
+  [4, false, 2],
+];
+
+function genFocusFromSlot() {
+  return buildCases(
+    'focusFromSlot',
+    'exact',
+    FOCUS_FROM_SLOT_MUST_HIT,
+    [],
+    ([handoffLastTab, arrivedByDrag, focusedSlot]) =>
+      focusFromSlot(handoffLastTab, arrivedByDrag, focusedSlot),
+    ([handoffLastTab, arrivedByDrag, focusedSlot]) => ({
+      handoffLastTab,
+      arrivedByDrag,
+      focusedSlot,
+    }),
+    (r) => r,
+    {
+      // outcome, not input: arriving by drag must actually return the
+      // focused slot, and that slot must differ from the handoff tab -
+      // else this class could be satisfied by a no-op case
+      'arrived-by-drag': ({ a, r }) => a[1] === true && r === a[2] && a[2] !== a[0],
+      'not-arrived-by-drag': ({ a }) => a[1] === false,
+    }
+  );
+}
+
+// zero-arg function: exactly one case (there is no parameter space to sweep)
+function genInitialReleaseState() {
+  return [
+    {
+      fn: 'initialReleaseState',
+      args: {},
+      expect: encReleaseState(initialReleaseState()),
+      compare: 'exact',
+    },
+  ];
+}
+
+// [state, event] pairs, run as the full cross product of 4 states x every
+// event below - so every event type is exercised from a state with nothing
+// pending, one with a release pending, one mid-arrival, and one with both -
+// rather than a hand-picked subset that could hide an outcome only visible
+// from a state nobody tried.
+//
+// pending's three fields are each given their own value (fromSlot 1, slot 3,
+// generation 7) so a reducer that compares the wrong two fields (event
+// generation vs pending.fromSlot, or renderedSlot vs pending.generation)
+// cannot pass by accident; timerSwappedGenerationForFromSlot and
+// timerSwappedRenderedSlotForGeneration below are built to trip exactly that
+// confusion.
+const RR_PENDING_FIELDS = { fromSlot: 1, slot: 3, generation: 7 };
+const RR_EMPTY_STATE = { pending: null, arrival: false };
+const RR_PENDING_STATE = { pending: RR_PENDING_FIELDS, arrival: false };
+const RR_ARRIVAL_STATE = { pending: null, arrival: true };
+const RR_PENDING_ARRIVAL_STATE = { pending: RR_PENDING_FIELDS, arrival: true };
+
+const RR_EVENTS = {
+  releaseHome: { type: 'release', plan: { kind: 'home' }, fromSlot: 1, generation: 1 },
+  releaseAwait: { type: 'release', plan: { kind: 'await', slot: 3 }, fromSlot: 1, generation: 1 },
+  releaseAwaitOverwrite: {
+    type: 'release',
+    plan: { kind: 'await', slot: 4 },
+    fromSlot: 5,
+    generation: 2,
+  },
+  began: { type: 'began' },
+  engage: { type: 'engage' },
+  focusCleanup: { type: 'focus-cleanup' },
+  focusBodyFalse: { type: 'focus-body', transientSlot: false },
+  focusBodyTrue: { type: 'focus-body', transientSlot: true },
+  // not mounted: drops the wait regardless of generation/renderedSlot
+  timerMountedFail: { type: 'timer', mounted: false, generation: 7, renderedSlot: 1 },
+  // generation mismatches pending.generation (7): drops the wait
+  timerGenerationFail: { type: 'timer', mounted: true, generation: 8, renderedSlot: 1 },
+  // generation matches, but renderedSlot (4) isn't pending.fromSlot (1): keeps the wait
+  timerRenderedSlotFail: { type: 'timer', mounted: true, generation: 7, renderedSlot: 4 },
+  // generation and renderedSlot both match: the only combination that goes home
+  timerAllPass: { type: 'timer', mounted: true, generation: 7, renderedSlot: 1 },
+  // generation (1) matches pending.fromSlot, not pending.generation (7) - a
+  // reducer comparing generation against fromSlot would wrongly pass this
+  timerSwappedGenerationForFromSlot: {
+    type: 'timer',
+    mounted: true,
+    generation: 1,
+    renderedSlot: 1,
+  },
+  // renderedSlot (7) matches pending.generation, not pending.fromSlot (1) - a
+  // reducer comparing renderedSlot against generation would wrongly pass this
+  timerSwappedRenderedSlotForGeneration: {
+    type: 'timer',
+    mounted: true,
+    generation: 7,
+    renderedSlot: 7,
+  },
+  abort: { type: 'abort' },
+  unmount: { type: 'unmount' },
+};
+
+const REDUCE_RELEASE_MUST_HIT = [];
+for (const state of [
+  RR_EMPTY_STATE,
+  RR_PENDING_STATE,
+  RR_ARRIVAL_STATE,
+  RR_PENDING_ARRIVAL_STATE,
+]) {
+  for (const event of Object.values(RR_EVENTS)) {
+    REDUCE_RELEASE_MUST_HIT.push([state, event]);
+  }
+}
+
+function genReduceRelease() {
+  return buildCases(
+    'reduceRelease',
+    'exact',
+    REDUCE_RELEASE_MUST_HIT,
+    [],
+    ([state, event]) => reduceRelease(state, event),
+    ([state, event]) => ({ state: encReleaseState(state), event }),
+    encReduceReleaseResult,
+    {
+      'effect-none': ({ r }) => r.effect === 'none',
+      'effect-go-home': ({ r }) => r.effect === 'go-home',
+      'effect-await': ({ r }) => r.effect === 'await',
+      'effect-clear-timer': ({ r }) => r.effect === 'clear-timer',
+      'effect-hold-generation': ({ r }) => r.effect === 'hold-generation',
+      'effect-arrived': ({ r }) => r.effect === 'arrived',
+      'pending-set-to-null': ({ a, r }) => a[0].pending !== null && r.state.pending === null,
+      'pending-null-to-set': ({ a, r }) => a[0].pending === null && r.state.pending !== null,
+      'arrival-false-to-true': ({ a, r }) => a[0].arrival === false && r.state.arrival === true,
+      'arrival-true-to-false': ({ a, r }) => a[0].arrival === true && r.state.arrival === false,
+      // Y1: each reduceTimer outcome, checked against the actual transition
+      // (not just the input shape), including the two swapped-field traps
+      'timer-not-mounted-drops-pending': ({ a, r }) =>
+        a[1].type === 'timer' &&
+        a[0].pending !== null &&
+        !a[1].mounted &&
+        r.state.pending === null &&
+        r.effect === 'none',
+      'timer-generation-mismatch-drops-pending': ({ a, r }) =>
+        a[1].type === 'timer' &&
+        a[0].pending !== null &&
+        a[1].mounted &&
+        a[1].generation !== RR_PENDING_FIELDS.generation &&
+        r.state.pending === null &&
+        r.effect === 'none',
+      'timer-renderedSlot-mismatch-keeps-pending': ({ a, r }) =>
+        a[1].type === 'timer' &&
+        a[0].pending !== null &&
+        a[1].mounted &&
+        a[1].generation === RR_PENDING_FIELDS.generation &&
+        a[1].renderedSlot !== RR_PENDING_FIELDS.fromSlot &&
+        r.state.pending !== null &&
+        r.effect === 'none',
+      'timer-all-pass-goes-home': ({ a, r }) =>
+        a[1].type === 'timer' && a[0].pending !== null && r.effect === 'go-home',
+      'timer-swapped-generation-for-fromSlot-still-drops': ({ a, r }) =>
+        a[1].type === 'timer' &&
+        a[0].pending !== null &&
+        a[1].generation === RR_PENDING_FIELDS.fromSlot &&
+        a[1].generation !== RR_PENDING_FIELDS.generation &&
+        r.state.pending === null &&
+        r.effect === 'none',
+      'timer-swapped-renderedSlot-for-generation-still-keeps': ({ a, r }) =>
+        a[1].type === 'timer' &&
+        a[0].pending !== null &&
+        a[1].renderedSlot === RR_PENDING_FIELDS.generation &&
+        a[1].renderedSlot !== RR_PENDING_FIELDS.fromSlot &&
+        r.state.pending !== null &&
+        r.effect === 'none',
+      // Y2: arrival flows through every event by the rule the reducer
+      // actually implements, checked against the real transition
+      'arrival-preserved-by-release': ({ a, r }) =>
+        a[1].type === 'release' && a[0].arrival === true && r.state.arrival === true,
+      'arrival-preserved-by-began': ({ a, r }) =>
+        a[1].type === 'began' && a[0].arrival === true && r.state.arrival === true,
+      'arrival-preserved-by-engage': ({ a, r }) =>
+        a[1].type === 'engage' && a[0].arrival === true && r.state.arrival === true,
+      'arrival-preserved-by-abort': ({ a, r }) =>
+        a[1].type === 'abort' && a[0].arrival === true && r.state.arrival === true,
+      'arrival-preserved-by-timer': ({ a, r }) =>
+        a[1].type === 'timer' && a[0].arrival === true && r.state.arrival === true,
+      'focus-cleanup-clears-arrival-when-nothing-pending': ({ a, r }) =>
+        a[1].type === 'focus-cleanup' &&
+        a[0].pending === null &&
+        a[0].arrival === true &&
+        r.state.arrival === false,
+      'focus-cleanup-sets-arrival-when-pending': ({ a, r }) =>
+        a[1].type === 'focus-cleanup' && a[0].pending !== null && r.state.arrival === true,
+      'focus-body-clears-arrival': ({ a, r }) =>
+        a[1].type === 'focus-body' && a[0].arrival === true && r.state.arrival === false,
+      'unmount-clears-arrival': ({ a, r }) =>
+        a[1].type === 'unmount' && a[0].arrival === true && r.state.arrival === false,
+    }
+  );
+}
+
 function genPerchHandoff() {
   return [
     ...genPlanRunSeatY(),
@@ -1780,6 +2384,16 @@ function genPerchHandoff() {
     ...genApplyFocusBlur(),
     ...genApplyDragTrack(),
     ...genApplyDragRelease(),
+    ...genPlanDragRelease(),
+    ...genSelectsOnRelease(),
+    ...genPlanApproach(),
+    ...genIsFarGrab(),
+    ...genPlanFarSample(),
+    ...genStepToward(),
+    ...genSanitizeRunSpeed(),
+    ...genFocusFromSlot(),
+    ...genInitialReleaseState(),
+    ...genReduceRelease(),
   ];
 }
 
@@ -1915,29 +2529,62 @@ const MODULES = [
     source: 'packages/tabpet/src/perch-geometry.ts',
     file: 'geometry.json',
     gen: genPerchGeometry,
+    // every numeric constant perch-geometry.ts exports
+    constants: {
+      PERCH_SIZE,
+      BAR_MARGIN_H,
+      CHASE_TRAIL,
+      FACING_DEADBAND,
+      CHASE_SLACK,
+      TRAVERSE_SPEED_PT_S,
+      MIN_TRAVERSE_MS,
+      MAX_TRAVERSE_MS,
+    },
   },
   {
     name: 'perch-around',
     source: 'packages/tabpet/src/perch-around.ts',
     file: 'around.json',
     gen: genPerchAround,
+    // every numeric constant perch-around.ts exports (ARC_SAMPLES is internal, not exported)
+    constants: { AROUND_MIN_SLOT_COUNT, AROUND_SPEED_PT_S },
   },
   {
     name: 'perch-handoff',
     source: 'packages/tabpet/src/perch-handoff.ts',
     file: 'handoff.json',
     gen: genPerchHandoff,
+    // every numeric constant perch-handoff.ts exports
+    constants: { RELEASE_GRACE_MS, FAR_GRAB_PT, FAR_STEP_MAX_DT_MS },
   },
   {
     name: 'pose-dissolve',
     source: 'packages/tabpet/src/pose-dissolve.ts',
     file: 'pose-dissolve.json',
     gen: genPoseDissolve,
+    // every numeric constant pose-dissolve.ts exports (PUP_POSES is a string array, not numeric)
+    constants: { POSE_FADE_MS },
   },
 ];
 
+/** encodes a module's pinned constants the same way as any other wrapped
+ *  float - bits authoritative, so both readers check the exact value their
+ *  own module exports, not a hand-copied literal that can drift. */
+function encodeConstants(constants) {
+  const out = {};
+  for (const [name, value] of Object.entries(constants)) {
+    out[name] = encodeNumber(value);
+  }
+  return out;
+}
+
 function buildPayload(mod) {
-  return { module: mod.name, source: mod.source, cases: mod.gen() };
+  return {
+    module: mod.name,
+    source: mod.source,
+    constants: encodeConstants(mod.constants),
+    cases: mod.gen(),
+  };
 }
 
 function renderPayload(payload) {
@@ -2038,10 +2685,13 @@ function firstStructuralDiff(fileLabel, fresh, committed, wideTolerance = false)
   if (fresh.source !== committed.source) {
     return `${fileLabel}: source ${committed.source} -> ${fresh.source}`;
   }
+  const argsMode = wideTolerance ? 'tolerance' : 'exact';
+  if (!structuralEqual(fresh.constants, committed.constants, argsMode)) {
+    return `${fileLabel}: constants differ`;
+  }
   if (fresh.cases.length !== committed.cases.length) {
     return `${fileLabel}: case count ${committed.cases.length} -> ${fresh.cases.length}`;
   }
-  const argsMode = wideTolerance ? 'tolerance' : 'exact';
   for (let i = 0; i < fresh.cases.length; i += 1) {
     const f = fresh.cases[i];
     const c = committed.cases[i];

@@ -40,6 +40,14 @@ final class AroundConformanceTests: XCTestCase {
         print("AroundConformanceTests: \(casesRun) conformance cases passed")
     }
 
+    /// pins every numeric constant perch-around.ts exports against the
+    /// fixture's own copy (ARC_SAMPLES is internal, not exported, and so not pinned).
+    func testAroundConstantsMatchModule() throws {
+        let fixture = try ConformanceFixtureLoader.load("around")
+        XCTAssertEqual(try fixture.constant("AROUND_MIN_SLOT_COUNT"), Double(PerchAround.AROUND_MIN_SLOT_COUNT))
+        XCTAssertEqual(try fixture.constant("AROUND_SPEED_PT_S"), PerchAround.AROUND_SPEED_PT_S)
+    }
+
     private func runCase(_ c: ConformanceCase) throws {
         switch c.fn {
         case "isEndToEnd":

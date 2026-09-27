@@ -196,6 +196,27 @@ indirect enum JSONValue: Decodable {
         try need(self[key]?.doubleValue, label)
     }
 
+    /// Optional field: decodes to nil ONLY when the key is missing or its
+    /// value is JSON null. A value present with the wrong type throws
+    /// instead of silently becoming nil - `argsJSON["x"]?.doubleValue ?? y`
+    /// would mask a malformed fixture as the fallback y.
+    func optionalDouble(_ key: String, _ label: String) throws -> Double? {
+        guard let value = self[key], !value.isNull else { return nil }
+        guard let d = value.doubleValue else {
+            throw ConformanceDecodeError.missingField("\(label) (wrong type, expected a number)")
+        }
+        return d
+    }
+
+    /// Same rule as optionalDouble, for a Bool.
+    func optionalBool(_ key: String, _ label: String) throws -> Bool? {
+        guard let value = self[key], !value.isNull else { return nil }
+        guard let b = value.boolValue else {
+            throw ConformanceDecodeError.missingField("\(label) (wrong type, expected a bool)")
+        }
+        return b
+    }
+
     /// decodes {x,y,width,height} (each a wrapped float), or nil when this
     /// value is JSON null - shouldRouteAround's pill argument is optional.
     func pillFrame() throws -> PillFrame? {
@@ -277,6 +298,177 @@ indirect enum JSONValue: Decodable {
     }
 }
 
+extension JSONValue {
+    /// decodes a nested PerchHandoffState {lastTab, lastX, lastSeat} - lastX is a wrapped float or null.
+    func perchHandoffState() throws -> PerchHandoffState {
+        PerchHandoffState(
+            lastTab: try need(self["lastTab"]?.intValue, "handoff.lastTab"),
+            lastX: try optionalDouble("lastX", "handoff.lastX"),
+            lastSeat: try doubleField("lastSeat", "handoff.lastSeat")
+        )
+    }
+
+    /// decodes a raw string into a FocusKind
+    func focusKind(_ label: String) throws -> FocusKind {
+        let raw = try need(stringValue, label)
+        guard let kind = FocusKind(rawValue: raw) else {
+            throw ConformanceDecodeError.missingField("\(label) (unknown focus kind \(raw))")
+        }
+        return kind
+    }
+
+    /// decodes a nested FocusPlan: kind is a raw string, next is a nested PerchHandoffState.
+    func focusPlan() throws -> FocusPlan {
+        FocusPlan(
+            kind: try need(self["kind"], "plan.kind").focusKind("plan.kind"),
+            fromX: try doubleField("fromX", "plan.fromX"),
+            targetX: try doubleField("targetX", "plan.targetX"),
+            fromSeatY: try doubleField("fromSeatY", "plan.fromSeatY"),
+            runSeatY: try doubleField("runSeatY", "plan.runSeatY"),
+            next: try need(self["next"], "plan.next").perchHandoffState(),
+            commitsHandoff: try need(self["commitsHandoff"]?.boolValue, "plan.commitsHandoff")
+        )
+    }
+
+    /// decodes a raw string into a BarScrub
+    func barScrub(_ label: String) throws -> BarScrub {
+        let raw = try need(stringValue, label)
+        guard let value = BarScrub(rawValue: raw) else {
+            throw ConformanceDecodeError.missingField("\(label) (unknown barScrub \(raw))")
+        }
+        return value
+    }
+
+    /// decodes a raw string into a DragPhase
+    func dragPhase(_ label: String) throws -> DragPhase {
+        let raw = try need(stringValue, label)
+        guard let value = DragPhase(rawValue: raw) else {
+            throw ConformanceDecodeError.missingField("\(label) (unknown phase \(raw))")
+        }
+        return value
+    }
+
+    /// decodes {kind:"home"} | {kind:"await", slot} into a DragReleasePlan - the
+    /// wire format carries the discriminated union as a plain object with its own "kind" string.
+    func dragReleasePlan() throws -> DragReleasePlan {
+        let kind = try need(self["kind"]?.stringValue, "plan.kind")
+        switch kind {
+        case "home":
+            return .home
+        case "await":
+            return .await(slot: try need(self["slot"]?.intValue, "plan.slot"))
+        default:
+            throw ConformanceDecodeError.missingField("plan.kind (unknown DragReleasePlan kind \(kind))")
+        }
+    }
+
+    /// decodes {kind:"spring"} | {kind:"run", durationMs} into an ApproachPlan
+    func approachPlan() throws -> ApproachPlan {
+        let kind = try need(self["kind"]?.stringValue, "plan.kind")
+        switch kind {
+        case "spring":
+            return .spring
+        case "run":
+            return .run(durationMs: try doubleField("durationMs", "plan.durationMs"))
+        default:
+            throw ConformanceDecodeError.missingField("plan.kind (unknown ApproachPlan kind \(kind))")
+        }
+    }
+
+    /// decodes {kind:"end"} | {kind:"track", target, facing} into a FarSamplePlan
+    func farSamplePlan() throws -> FarSamplePlan {
+        let kind = try need(self["kind"]?.stringValue, "plan.kind")
+        switch kind {
+        case "end":
+            return .end
+        case "track":
+            return .track(
+                target: try doubleField("target", "plan.target"),
+                facing: try need(self["facing"], "plan.facing").facing("plan.facing")
+            )
+        default:
+            throw ConformanceDecodeError.missingField("plan.kind (unknown FarSamplePlan kind \(kind))")
+        }
+    }
+
+    /// decodes a nested stepToward result {x, arrived}
+    func stepTowardResult() throws -> StepTowardResult {
+        StepTowardResult(
+            x: try doubleField("x", "result.x"),
+            arrived: try need(self["arrived"]?.boolValue, "result.arrived")
+        )
+    }
+
+    /// decodes a nested ReleaseState.Pending {fromSlot, slot, generation}, or nil when this value is JSON null.
+    func releasePending() throws -> ReleaseState.Pending? {
+        if isNull { return nil }
+        return ReleaseState.Pending(
+            fromSlot: try need(self["fromSlot"]?.intValue, "pending.fromSlot"),
+            slot: try need(self["slot"]?.intValue, "pending.slot"),
+            generation: try need(self["generation"]?.intValue, "pending.generation")
+        )
+    }
+
+    /// decodes a nested ReleaseState {pending, arrival}
+    func releaseState() throws -> ReleaseState {
+        ReleaseState(
+            pending: try need(self["pending"], "state.pending").releasePending(),
+            arrival: try need(self["arrival"]?.boolValue, "state.arrival")
+        )
+    }
+
+    /// decodes a ReleaseEvent, tagged by its "type" string - the wire format
+    /// carries the discriminated union as a plain object, same as DragReleasePlan.
+    func releaseEvent() throws -> ReleaseEvent {
+        let type = try need(self["type"]?.stringValue, "event.type")
+        switch type {
+        case "release":
+            return .release(
+                plan: try need(self["plan"], "event.plan").dragReleasePlan(),
+                fromSlot: try need(self["fromSlot"]?.intValue, "event.fromSlot"),
+                generation: try need(self["generation"]?.intValue, "event.generation")
+            )
+        case "began":
+            return .began
+        case "engage":
+            return .engage
+        case "focus-cleanup":
+            return .focusCleanup
+        case "focus-body":
+            return .focusBody(transientSlot: try need(self["transientSlot"]?.boolValue, "event.transientSlot"))
+        case "timer":
+            return .timer(
+                mounted: try need(self["mounted"]?.boolValue, "event.mounted"),
+                generation: try need(self["generation"]?.intValue, "event.generation"),
+                renderedSlot: try need(self["renderedSlot"]?.intValue, "event.renderedSlot")
+            )
+        case "abort":
+            return .abort
+        case "unmount":
+            return .unmount
+        default:
+            throw ConformanceDecodeError.missingField("event.type (unknown ReleaseEvent type \(type))")
+        }
+    }
+
+    /// decodes a raw string into a ReleaseEffect
+    func releaseEffect(_ label: String) throws -> ReleaseEffect {
+        let raw = try need(stringValue, label)
+        guard let effect = ReleaseEffect(rawValue: raw) else {
+            throw ConformanceDecodeError.missingField("\(label) (unknown effect \(raw))")
+        }
+        return effect
+    }
+
+    /// decodes a nested reduceRelease result {state, effect}
+    func reduceReleaseResult() throws -> ReduceReleaseResult {
+        ReduceReleaseResult(
+            state: try need(self["state"], "result.state").releaseState(),
+            effect: try need(self["effect"], "result.effect").releaseEffect("result.effect")
+        )
+    }
+}
+
 struct ConformanceCase: Decodable {
     let fn: String
     let args: JSONValue
@@ -287,7 +479,15 @@ struct ConformanceCase: Decodable {
 struct ConformanceFixture: Decodable {
     let module: String
     let source: String
+    let constants: JSONValue
     let cases: [ConformanceCase]
+
+    /// looks up a pinned constant by name - throws (not a silent 0) if the
+    /// fixture doesn't carry it or it isn't a number, since a missing pinned
+    /// constant is a fixture bug, never a legitimate "use the default" case.
+    func constant(_ name: String) throws -> Double {
+        try need(constants[name]?.doubleValue, "constants.\(name)")
+    }
 }
 
 enum ConformanceCompare {
