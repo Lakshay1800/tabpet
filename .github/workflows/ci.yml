@@ -22,6 +22,7 @@ jobs:
       - run: bun run leak-check
         env:
           LEAK_PATTERN: ${{ secrets.LEAK_PATTERN }}
+          LEAK_CHECK_REQUIRED: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.actor == 'dependabot[bot]')) && '0' || '1' }}
       - run: bun run typecheck
       - run: bun run fmt:check
       - run: bun run lint
