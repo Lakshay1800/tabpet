@@ -1,5 +1,7 @@
 import Foundation
 
+import TabPetCore
+
 /// "exact" is bit-identical (any NaN equals any NaN); "tolerance" is for a
 /// result that passed through Math.sin/cos/atan2/hypot on the TypeScript
 /// side, where another math library can round the last bit differently.
@@ -18,6 +20,7 @@ enum ConformanceDecodeError: Error, CustomStringConvertible {
     case wrongTypeArrayElement(JSONValue)
     case notAnArray(JSONValue)
     case repoRootNotFound(String)
+    case missingField(String)
 
     var description: String {
         switch self {
@@ -29,8 +32,19 @@ enum ConformanceDecodeError: Error, CustomStringConvertible {
             return "expected a JSON array, got: \(value)"
         case .repoRootNotFound(let filePath):
             return "Package.swift not found walking up from \(filePath)"
+        case .missingField(let label):
+            return "missing or mistyped field: \(label)"
         }
     }
+}
+
+/// unwraps an optional decoded field, throwing .missingField instead of
+/// crashing on a malformed fixture.
+private func need<T>(_ value: T?, _ label: String) throws -> T {
+    guard let value else {
+        throw ConformanceDecodeError.missingField(label)
+    }
+    return value
 }
 
 /// probe-only coding key for detecting whether a decoder's underlying JSON
@@ -176,6 +190,90 @@ indirect enum JSONValue: Decodable {
     subscript(key: String) -> JSONValue? {
         if case .object(let dict) = self { return dict[key] }
         return nil
+    }
+
+    private func doubleField(_ key: String, _ label: String) throws -> Double {
+        try need(self[key]?.doubleValue, label)
+    }
+
+    /// decodes {x,y,width,height} (each a wrapped float), or nil when this
+    /// value is JSON null - shouldRouteAround's pill argument is optional.
+    func pillFrame() throws -> PillFrame? {
+        if isNull { return nil }
+        return PillFrame(
+            x: try doubleField("x", "pill.x"),
+            y: try doubleField("y", "pill.y"),
+            width: try doubleField("width", "pill.width"),
+            height: try doubleField("height", "pill.height")
+        )
+    }
+
+    /// decodes a raw (unwrapped) -1/1 JSON int into a Facing
+    func facing(_ label: String) throws -> Facing {
+        let raw = try need(intValue, label)
+        guard let facing = Facing(rawValue: raw) else {
+            throw ConformanceDecodeError.missingField("\(label) (unknown raw facing \(raw))")
+        }
+        return facing
+    }
+
+    private func requiredDoubleArray(_ key: String, _ label: String) throws -> [Double] {
+        try need(try need(self[key], label).doubleArray(), label)
+    }
+
+    /// decodes a nested AroundPath: exitSide/enterSide/facing/spin as raw
+    /// ints, arcCum/legs as wrapped-float arrays, everything else a wrapped float.
+    func aroundPath() throws -> AroundPath {
+        AroundPath(
+            exitSide: try need(self["exitSide"], "path.exitSide").facing("path.exitSide"),
+            enterSide: try need(self["enterSide"], "path.enterSide").facing("path.enterSide"),
+            facing: try need(self["facing"], "path.facing").facing("path.facing"),
+            spin: try need(self["spin"], "path.spin").facing("path.spin"),
+            pivot: try doubleField("pivot", "path.pivot"),
+            seatFeetY: try doubleField("seatFeetY", "path.seatFeetY"),
+            underY: try doubleField("underY", "path.underY"),
+            cxExit: try doubleField("cxExit", "path.cxExit"),
+            cxEnter: try doubleField("cxEnter", "path.cxEnter"),
+            cy: try doubleField("cy", "path.cy"),
+            a: try doubleField("a", "path.a"),
+            b: try doubleField("b", "path.b"),
+            feetX0: try doubleField("feetX0", "path.feetX0"),
+            targetFeetX: try doubleField("targetFeetX", "path.targetFeetX"),
+            arcCum: try requiredDoubleArray("arcCum", "path.arcCum"),
+            arcLen: try doubleField("arcLen", "path.arcLen"),
+            legs: try requiredDoubleArray("legs", "path.legs"),
+            totalLen: try doubleField("totalLen", "path.totalLen"),
+            totalMs: try doubleField("totalMs", "path.totalMs")
+        )
+    }
+
+    /// decodes a nested pose {x, seatY, rotation}, each a wrapped float -
+    /// aroundPose's and resumedPose's shared (unnamed on the TypeScript side) return shape.
+    func aroundPose() throws -> AroundPose {
+        AroundPose(
+            x: try doubleField("x", "pose.x"),
+            seatY: try doubleField("seatY", "pose.seatY"),
+            rotation: try doubleField("rotation", "pose.rotation")
+        )
+    }
+
+    /// decodes a nested ResumedRoute: `base` is a nested AroundPath, `dir`/
+    /// `facing` are raw ints, everything else is a wrapped float.
+    func resumedRoute() throws -> ResumedRoute {
+        ResumedRoute(
+            base: try need(self["base"], "route.base").aroundPath(),
+            startS: try doubleField("startS", "route.startS"),
+            endS: try doubleField("endS", "route.endS"),
+            dir: try need(self["dir"], "route.dir").facing("route.dir"),
+            curveLen: try doubleField("curveLen", "route.curveLen"),
+            tailFromFeetX: try doubleField("tailFromFeetX", "route.tailFromFeetX"),
+            tailToFeetX: try doubleField("tailToFeetX", "route.tailToFeetX"),
+            tailLen: try doubleField("tailLen", "route.tailLen"),
+            totalLen: try doubleField("totalLen", "route.totalLen"),
+            totalMs: try doubleField("totalMs", "route.totalMs"),
+            facing: try need(self["facing"], "route.facing").facing("route.facing"),
+            endRotation: try doubleField("endRotation", "route.endRotation")
+        )
     }
 }
 
