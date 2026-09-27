@@ -9,10 +9,11 @@
   "scripts": {
     "typecheck": "tsc -p packages/tabpet --noEmit && tsc -p apps/example --noEmit",
     "test": "node scripts/run-tests.mjs",
+    "conformance": "bunx tsx scripts/gen-conformance.mjs",
     "lint": "oxlint",
     "fmt": "oxfmt .",
     "fmt:check": "oxfmt --check .",
-    "check": "bun run leak-check && bun run typecheck && bun run fmt:check && bun run lint && bun run test",
+    "check": "bun run leak-check && bun run typecheck && bun run fmt:check && bun run lint && bun run test && bun run conformance --check && bun run conformance --self-test",
     "leak-check": "bash tools/check-no-private-strings.sh",
     "example": "cd apps/example && bunx expo start",
     "knip": "knip"
