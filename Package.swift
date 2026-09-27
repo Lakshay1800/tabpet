@@ -9,6 +9,7 @@ let package = Package(
     ],
     products: [
         .library(name: "TabPetCore", targets: ["TabPetCore"]),
+        .library(name: "TabPetMotion", targets: ["TabPetMotion"]),
         .library(name: "TabPetUIKit", targets: ["TabPetUIKit"]),
         .library(name: "TabPetAnimalPanda", targets: ["TabPetAnimalPanda"]),
         .library(name: "TabPetAnimalCat", targets: ["TabPetAnimalCat"]),
@@ -28,6 +29,18 @@ let package = Package(
             name: "TabPetCoreTests",
             dependencies: ["TabPetCore"],
             path: "swift/Tests/TabPetCoreTests",
+            swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+        ),
+        .target(
+            name: "TabPetMotion",
+            dependencies: ["TabPetCore"],
+            path: "swift/Sources/TabPetMotion",
+            swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+        ),
+        .testTarget(
+            name: "TabPetMotionTests",
+            dependencies: ["TabPetMotion"],
+            path: "swift/Tests/TabPetMotionTests",
             swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
         ),
         // Never "TabPet" alone: the Expo pod's Swift module already claims that name.

@@ -75,6 +75,10 @@ Each case carries a `"compare"` rule, decided per function by whether its result
 
 Each Swift test file keeps its own coverage list by hand (`knownGeometryFunctions`, `knownAroundFunctions`, `knownHandoffFunctions`, `knownPoseDissolveFunctions`), since Swift has no runtime export list to diff against. The TypeScript reader (`conformance.test.ts`) is the one that detects a new export with no fixture coverage, by enumerating the module's actual namespace.
 
+## Motion Fixtures
+
+`conformance/motion.json` is a different kind of fixture from the four above: instead of calling a pure TypeScript function, `scripts/gen-motion-fixtures.mjs` drives the real installed `react-native-reanimated` animation objects (`withSpring`/`withTiming`/`withDelay`/`withSequence`/`withRepeat`) through their own `onStart`/`onFrame`, and separately drives the real `valueSetter` against a plain mutable object for a script of set/frame operations on one value, recording every trajectory and every completion callback it fires - so `swift/Tests/TabPetMotionTests/` replays real recorded behaviour rather than a re-derivation of the algorithm. Regenerate with `bun run motion-fixtures`; check staleness with `bun run motion-fixtures --check` (wired into `bun run check` and CI, same convention as `conformance --check`).
+
 ## Local consumers
 
 Install from a packed tarball, not a `file:` directory:
