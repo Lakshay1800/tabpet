@@ -4,7 +4,16 @@
  * transientSlot never reads or writes this store - a pushed screen must not
  * skew the next genuine tab chase.
  */
-import { tabCenterX, shouldSnapToSeat, traverseDurationMs } from './perch-geometry';
+import {
+  CHASE_SLACK,
+  CHASE_TRAIL,
+  chaseTargetX,
+  PERCH_SIZE,
+  shouldSnapToSeat,
+  tabCenterX,
+  traverseDurationMs,
+  TRAVERSE_SPEED_PT_S,
+} from './perch-geometry';
 
 export interface PerchHandoffState {
   lastTab: number;
@@ -263,6 +272,77 @@ export function planApproach(distancePt: number, speedPtS?: number): ApproachPla
     return { kind: 'spring' };
   }
   return { kind: 'run', durationMs: traverseDurationMs(distance, speedPtS) };
+}
+
+/** Gap between the glass target and the companion, at engage, above which a
+ *  live drag is a far grab rather than a normal spring chase. */
+export const FAR_GRAB_PT = PERCH_SIZE;
+
+/** Whether an engaging drag starts far enough from the companion's seat to
+ *  need a run instead of the spring follower. */
+export function isFarGrab(gapPt: number): boolean {
+  return Math.abs(gapPt) > FAR_GRAB_PT;
+}
+
+/** dt above this is clamped in stepToward - a stale or idle frame callback
+ *  cannot cover more travel than this in one step. */
+export const FAR_STEP_MAX_DT_MS = 34;
+
+export type FarSamplePlan = { kind: 'end' } | { kind: 'track'; target: number; facing: 1 | -1 };
+
+/** A far approach ends once the glass is inside the leash's not-chasing edge,
+ *  or on a non-finite input. That edge, not a deadband, is what keeps a small
+ *  gap from flipping him: beyond it the facing is the sign of the gap. */
+export function planFarSample(args: {
+  glassX: number;
+  currentX: number;
+  screenWidth: number;
+}): FarSamplePlan {
+  if (!Number.isFinite(args.glassX) || !Number.isFinite(args.currentX)) {
+    return { kind: 'end' };
+  }
+  const gap = args.glassX - args.currentX;
+  if (Math.abs(gap) <= CHASE_TRAIL + CHASE_SLACK) {
+    return { kind: 'end' };
+  }
+  const facing: 1 | -1 = gap >= 0 ? 1 : -1;
+  return { kind: 'track', target: chaseTargetX(args.glassX, facing, args.screenWidth), facing };
+}
+
+/** One frame's step toward a target that may move. Stepped per frame rather
+ *  than animated: re-issuing an animation per finger sample restarts its
+ *  clock and he gains a frame of travel each time. Never returns NaN. */
+export function stepToward(
+  current: number,
+  target: number,
+  speedPtS: number,
+  dtMs: number
+): { x: number; arrived: boolean } {
+  'worklet';
+  if (
+    !Number.isFinite(current) ||
+    !Number.isFinite(target) ||
+    !Number.isFinite(speedPtS) ||
+    !Number.isFinite(dtMs) ||
+    speedPtS <= 0
+  ) {
+    return { x: current, arrived: false };
+  }
+  const clampedDt = Math.min(Math.max(dtMs, 0), FAR_STEP_MAX_DT_MS);
+  const distance = target - current;
+  const step = (speedPtS * clampedDt) / 1000;
+  if (Math.abs(distance) <= step) {
+    return { x: target, arrived: true };
+  }
+  const direction = distance >= 0 ? 1 : -1;
+  return { x: current + direction * step, arrived: false };
+}
+
+/** speed when it is a real, positive number, else the shared default - a
+ *  host profile's runSpeed is an unvalidated number (a zero or negative
+ *  override must not freeze or reverse a run). */
+export function sanitizeRunSpeed(speed: number | undefined): number {
+  return speed !== undefined && Number.isFinite(speed) && speed > 0 ? speed : TRAVERSE_SPEED_PT_S;
 }
 
 /** A drag that arrives by drag must not be mistaken for an end-to-end tap

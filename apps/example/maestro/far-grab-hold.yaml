@@ -1,0 +1,27 @@
+# far-grab, but the finger creeps toward the companion for hold=1500ms
+# instead of lifting after a few frames - long enough to see the whole far
+# approach, its arrival, and the spring follower that takes over once he
+# catches up. Same seated-on-Explore setup as far-grab.yaml: he settles on
+# Explore first, then the deep link only changes the demo params on the
+# already-mounted route - no navigation. Pair with a screen recording and
+# `tools/frame-stack.sh` for frames.
+#
+# What a reviewer should see in these frames: he runs to the finger at his
+# run speed; he reaches the trailing point and stops; the finger passes over
+# him; once the finger is a leash length past him he turns and trails it for
+# a moment; the finger lifts; he goes to the slot under the finger and
+# seats; the navigation lands and he stays.
+appId: dev.example.companion
+---
+- launchApp
+- waitForAnimationToEnd
+- tapOn: 'Explore'
+- waitForAnimationToEnd
+- openLink: companion://explore?demo=far-grab&hold=1500
+# iOS confirms a custom-scheme link opened from outside the app
+- tapOn:
+    text: 'Open'
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: maestro/out/fgh1-far-grab-hold-settled

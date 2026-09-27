@@ -24,6 +24,21 @@ function tabCenterXNow(slot: number): number {
   return centers?.[slot] ?? evenSplitCenterX(slot, SLOT_COUNT, Dimensions.get('window').width);
 }
 
+/** Slot whose center (the same source tabCenterXNow uses) sits nearest x -
+ *  a held far-grab's finger lifts partway to the far slot, not on it. */
+function nearestSlotToX(x: number, slotCount: number): number {
+  let best = 0;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let slot = 0; slot < slotCount; slot += 1) {
+    const distance = Math.abs(x - tabCenterXNow(slot));
+    if (distance < bestDistance) {
+      best = slot;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
 function parseSlot(value: string | undefined, fallback: number): number {
   const n = Number(value);
   return Number.isInteger(n) && n >= 0 && n < SLOT_COUNT ? n : fallback;
@@ -32,6 +47,37 @@ function parseSlot(value: string | undefined, fallback: number): number {
 function parseLag(value: string | undefined, fallback: number): number {
   const n = Number(value);
   return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
+// undefined (absent or invalid) keeps the far-grab demo's default short
+// lunge - only a real, positive hold switches it to the long approach.
+function parseHold(value: string | undefined): number | undefined {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+/** drag-release ramps from here to there; far-grab starts at the far slot -
+ *  a held far-grab creeps at 1pt/16ms for ~holdMs instead of the default
+ *  24pt lunge. Split out to keep the effect below out of a nested ternary. */
+function fingerDemoScript(
+  demo: 'drag-release' | 'far-grab',
+  hereX: number,
+  toSlotX: number,
+  holdMs: number | undefined
+): FingerStep[] {
+  if (demo === 'drag-release') {
+    return rampScript(hereX, toSlotX);
+  }
+  if (holdMs !== undefined) {
+    return rampScript(toSlotX, hereX, {
+      stepPt: 1,
+      stepMs: 16,
+      // pt cap that keeps the scripted move going for ~holdMs, at 1pt
+      // every 16ms - not the distance to the companion
+      limit: Math.max(1, Math.round(holdMs / 16)),
+    });
+  }
+  return rampScript(toSlotX, hereX, { limit: 24 });
 }
 
 // The busy claim is how an app tells the companion it is working on the
@@ -45,7 +91,12 @@ export default function Explore() {
     // no script playing yet - replaced once a demo starts
   });
   const startedRef = useRef(false);
-  const { demo, to, lag } = useLocalSearchParams<{ demo?: string; to?: string; lag?: string }>();
+  const { demo, to, lag, hold } = useLocalSearchParams<{
+    demo?: string;
+    to?: string;
+    lag?: string;
+    hold?: string;
+  }>();
   useEffect(
     () => () => {
       for (const t of timers.current) {
@@ -132,6 +183,13 @@ export default function Explore() {
   // link opening, so the navigation always lands after the release:
   // companion://explore?demo=drag-release&to=<slotIndex>&lag=<ms>
   // companion://explore?demo=far-grab&to=<slotIndex>&lag=<ms>
+  //
+  // far-grab also takes &hold=<ms>: instead of the default short lunge, the
+  // finger creeps toward the companion by 1pt every 16ms for that long
+  // before lifting - long enough to see the whole far approach, its arrival,
+  // and the spring follower that takes over. Absent, the default (a lunge of
+  // a few frames) is unchanged.
+  // companion://explore?demo=far-grab&to=<slotIndex>&hold=<ms>
   useEffect(() => {
     if (running || startedRef.current) {
       return;
@@ -150,21 +208,26 @@ export default function Explore() {
     if (demo === 'drag-release' || demo === 'far-grab') {
       startedRef.current = true;
       const lagMs = parseLag(lag, 250);
+      const holdMs = parseHold(hold);
       const toSlot =
         demo === 'drag-release'
           ? parseSlot(to, SLOT_COUNT - 1)
           : parseSlot(to, farthestSlotFrom(HERE, SLOT_COUNT));
-      const script =
-        demo === 'drag-release'
-          ? rampScript(tabCenterXNow(HERE), tabCenterXNow(toSlot))
-          : rampScript(tabCenterXNow(toSlot), tabCenterXNow(HERE), { limit: 24 });
+      const script = fingerDemoScript(demo, tabCenterXNow(HERE), tabCenterXNow(toSlot), holdMs);
+      // a held far-grab lifts partway there, not on toSlot - navigate to
+      // whichever slot the finger actually ended up nearest, or the
+      // recording's tail shows an unexplained detour to a different slot
+      const navigateToSlot =
+        demo === 'far-grab' && holdMs !== undefined
+          ? nearestSlotToX(script.at(-1)?.x ?? tabCenterXNow(toSlot), SLOT_COUNT)
+          : toSlot;
       const id = setTimeout(() => {
         router.setParams({ demo: '' });
-        runFingerDemo(script, toSlot, lagMs);
+        runFingerDemo(script, navigateToSlot, lagMs);
       }, 0);
       return () => clearTimeout(id);
     }
-  }, [demo, to, lag, running, turnBack, keepGoing, runFingerDemo]);
+  }, [demo, to, lag, hold, running, turnBack, keepGoing, runFingerDemo]);
   const work = () => {
     if (working) {
       return;
