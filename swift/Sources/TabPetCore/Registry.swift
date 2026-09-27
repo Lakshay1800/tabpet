@@ -27,10 +27,25 @@ public struct SheetGeometry: Equatable, Hashable, Codable, Sendable {
     }
 }
 
+/// Sprite sheet grid without a playback rate, ported from sheet-geometry.ts's
+/// `RUN_SHEET_GRID` shape (`Omit<SheetGeometry, 'fps'>`) - the run sheet's fps
+/// is per-animal (`profile.runFps`), so this type carries no `fps` field.
+public struct SheetGridWithoutFPS: Equatable, Hashable, Codable, Sendable {
+    public let cols: Int
+    public let rows: Int
+    /// populated cells; a grid may carry an unused trailing cell
+    public let frames: Int
+
+    public init(cols: Int, rows: Int, frames: Int) {
+        self.cols = cols
+        self.rows = rows
+        self.frames = frames
+    }
+}
+
 /// Static sheet sources for a companion's idle/run/sit sprite sheets, ported
 /// from registry.ts's `CompanionProfile.sheets`. Nothing in TabPetCore loads
-/// an image from these URLs - room only, for the asset targets in a later
-/// milestone.
+/// an image from these URLs.
 public struct CompanionSheets: Equatable, Hashable, Codable, Sendable {
     public let idle: URL
     public let run: URL
@@ -77,8 +92,8 @@ public struct CompanionProfile: Equatable, Hashable, Codable, Sendable {
     public let runSpeed: Double?
     /// Sit sheet grid and playback rate. Default when omitted: 5x5x25 @ 12fps.
     public let sitSheet: SheetGeometry?
-    /// Static idle/run/sit sheet sources - room for a later milestone's asset
-    /// targets to fill in; nothing in TabPetCore loads an image from it.
+    /// Static idle/run/sit sheet sources; nil where the resource bundle
+    /// cannot be found. Nothing in TabPetCore loads an image from it.
     public let sheets: CompanionSheets?
 
     public init(
@@ -123,8 +138,14 @@ extension CompanionProfile {
     public static let SPRITE_FOOT_PAD: Double = 11
     /// TS: BAR_TOP_ABOVE_INSET in companion-perch.tsx - shared default `seatLift`.
     public static let BAR_TOP_ABOVE_INSET: Double = 6
-    /// TS: DEFAULT_SIT_SHEET in companion-sprite.tsx - shared default `sitSheet`.
+    /// TS: DEFAULT_SIT_SHEET in sheet-geometry.ts - shared default `sitSheet`.
     public static let DEFAULT_SIT_SHEET = SheetGeometry(cols: 5, rows: 5, frames: 25, fps: 12)
+    /// TS: IDLE_SHEET_GRID in sheet-geometry.ts - every animal's idle grid.
+    public static let IDLE_SHEET_GRID = SheetGeometry(cols: 5, rows: 5, frames: 25, fps: 12)
+    /// TS: RUN_SHEET_GRID in sheet-geometry.ts - the shared run grid (fps is
+    /// per-animal, `profile.runFps`, so the TS type omits it; this mirrors
+    /// that shape, not `SheetGeometry`).
+    public static let RUN_SHEET_GRID = SheetGridWithoutFPS(cols: 4, rows: 3, frames: 11)
 
     public var resolvedFootPad: Double { footPad ?? Self.SPRITE_FOOT_PAD }
     public var resolvedSeatLift: Double { seatLift ?? Self.BAR_TOP_ABOVE_INSET }

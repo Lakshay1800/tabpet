@@ -13,8 +13,9 @@
     "lint": "oxlint",
     "fmt": "oxfmt .",
     "fmt:check": "oxfmt --check .",
-    "check": "bun run leak-check && bun run typecheck && bun run fmt:check && bun run lint && bun run test && bun run conformance --check && bun run conformance --self-test",
+    "check": "bun run leak-check && bun run typecheck && bun run fmt:check && bun run lint && bun run test && bun run conformance --check && bun run conformance --self-test && bun run swift-asset-check",
     "leak-check": "bash tools/check-no-private-strings.sh",
+    "swift-asset-check": "bash tools/swift-asset-check.sh",
     "example": "cd apps/example && bunx expo start",
     "knip": "knip"
   },
