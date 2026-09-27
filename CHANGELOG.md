@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.2
 
 - Fixed: a drag released over another tab no longer runs back to the old tab before the selection lands.
 - Fixed: onDragRelease is no longer called for a cancelled drag.
