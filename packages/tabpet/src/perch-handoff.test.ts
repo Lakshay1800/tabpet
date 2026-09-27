@@ -9,12 +9,15 @@ import {
   applyDragRelease,
   applyDragTrack,
   applyFocusBlur,
+  FAR_GRAB_PT,
   focusFromSlot,
   initialPerchHandoff,
   initialReleaseState,
+  isFarGrab,
   liveLastSeat,
   planApproach,
   planDragRelease,
+  planFarSample,
   planFocus,
   planMountSeatY,
   planRunSeatY,
@@ -22,7 +25,9 @@ import {
   readPerchHandoff,
   reduceRelease,
   resetPerchHandoffForTest,
+  sanitizeRunSpeed,
   selectsOnRelease,
+  stepToward,
   writePerchHandoff,
 } from './perch-handoff';
 import type { DragReleasePlan } from './perch-handoff';
@@ -473,6 +478,269 @@ function testPlanApproach(): void {
   // speed 100 stretches floor/ceiling by 340/100 = 3.4x (1360ms/7480ms); the
   // raw rate 200 / 100 * 1000 = 2000ms falls between them, so it applies unclamped
   strictEqual(stretched.durationMs, 2000, 'a speed override stretches the floor and ceiling');
+}
+
+// literal expected values - never derived from isFarGrab's own expression
+function testIsFarGrab(): void {
+  strictEqual(FAR_GRAB_PT, 54, 'fixture assumes FAR_GRAB_PT === PERCH_SIZE');
+  strictEqual(isFarGrab(54), false, 'exactly the threshold is not far (strict greater-than)');
+  strictEqual(isFarGrab(54.1), true);
+  strictEqual(isFarGrab(-54.1), true);
+  strictEqual(isFarGrab(0), false);
+}
+
+// literal expected values - never derived from sanitizeRunSpeed's own expression
+function testSanitizeRunSpeed(): void {
+  strictEqual(sanitizeRunSpeed(340), 340);
+  strictEqual(sanitizeRunSpeed(200), 200);
+  strictEqual(sanitizeRunSpeed(5000), 5000);
+  for (const bad of [
+    0,
+    -5,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+    undefined,
+  ]) {
+    strictEqual(sanitizeRunSpeed(bad), 340, `${bad} must fall back to TRAVERSE_SPEED_PT_S`);
+  }
+}
+
+// literal expected values - never derived from stepToward's own expression
+function testStepToward(): void {
+  const speed = 340;
+  const stepPt = 5.44; // 340 * 16 / 1000
+  const base = stepToward(0, 300, speed, 16);
+  ok(Math.abs(base.x - stepPt) < 1e-9, `dt 16 must step ${stepPt}, got ${base.x}`);
+  strictEqual(base.arrived, false);
+
+  const dtZero = stepToward(0, 300, speed, 0);
+  strictEqual(dtZero.x, 0, 'dt 0 makes no step');
+  strictEqual(dtZero.arrived, false);
+
+  const dtOverLong = stepToward(0, 300, speed, 1000);
+  ok(
+    Math.abs(dtOverLong.x - 11.56) < 1e-9,
+    'dt above FAR_STEP_MAX_DT_MS clamps to 34ms (11.56pt), not the raw 1000ms'
+  );
+  strictEqual(dtOverLong.arrived, false);
+
+  const leftward = stepToward(100, 50, speed, 16);
+  ok(
+    Math.abs(leftward.x - (100 - stepPt)) < 1e-9,
+    'a target on the left moves him left by the same step'
+  );
+  strictEqual(leftward.arrived, false);
+
+  const closeIn = stepToward(298, 300, speed, 16);
+  strictEqual(closeIn.x, 300, 'a step past the target lands exactly on it');
+  strictEqual(closeIn.arrived, true);
+
+  const already = stepToward(50, 50, speed, 16);
+  strictEqual(already.x, 50, 'current equal to target: x unchanged');
+  strictEqual(already.arrived, true);
+
+  // speed 0 at current === target: the speedPtS <= 0 guard returns not-arrived
+  // before the arithmetic ever sees the zero distance - a mutation to < 0
+  // would let speed 0 fall through and report arrived true instead
+  const zeroSpeedAtTarget = stepToward(50, 50, 0, 16);
+  strictEqual(zeroSpeedAtTarget.x, 50);
+  strictEqual(zeroSpeedAtTarget.arrived, false, 'the guard, not the arithmetic, decides');
+
+  const nanTarget = stepToward(10, Number.NaN, speed, 16);
+  strictEqual(nanTarget.x, 10);
+  strictEqual(nanTarget.arrived, false);
+  const nanSpeed = stepToward(10, 300, Number.NaN, 16);
+  strictEqual(nanSpeed.x, 10);
+  strictEqual(nanSpeed.arrived, false);
+  const nanDt = stepToward(10, 300, speed, Number.NaN);
+  strictEqual(nanDt.x, 10);
+  strictEqual(nanDt.arrived, false);
+}
+
+// A FIXED 300pt target at 340pt/s in 16ms steps: every step but the last
+// moves the raw 5.44pt/step; the last step clamps to the target exactly,
+// never past it. Steps counted by hand: 300 / 5.44 = 55.14..., so 55 full
+// steps (299.2pt) plus one clamped step to 300.
+function testStepTowardFixedTargetStepCount(): void {
+  const speed = 340;
+  let x = 0;
+  let steps = 0;
+  let arrived = false;
+  while (!arrived && steps < 200) {
+    const { x: nextX, arrived: isArrived } = stepToward(x, 300, speed, 16);
+    if (steps < 55) {
+      ok(
+        Math.abs(nextX - (x + 5.44)) < 1e-9,
+        `step ${steps} must move the raw 5.44pt, got ${nextX - x}`
+      );
+    }
+    x = nextX;
+    arrived = isArrived;
+    steps += 1;
+  }
+  strictEqual(steps, 56, 'closing 300pt at 5.44pt/step arrives on the 56th step');
+  strictEqual(x, 300, 'the last step lands exactly on the target, never past it');
+}
+
+// A MOVING target that recedes at 100pt/s: stepToward only sees the live
+// gap each call, so x still steps the raw 5.44pt/step (50 steps = 272pt);
+// the gap itself only closes by 5.44 - 1.6 = 3.84pt per step, so he has not
+// caught the ever-receding target.
+function testStepTowardRecedingTarget(): void {
+  const speed = 340;
+  let x = 0;
+  let target = 300;
+  let arrived = false;
+  for (let i = 0; i < 50; i += 1) {
+    target += 1.6; // recedes at 100pt/s over this 16ms step
+    const { x: nextX, arrived: isArrived } = stepToward(x, target, speed, 16);
+    x = nextX;
+    arrived = isArrived;
+  }
+  ok(Math.abs(x - 272) < 1e-9, `x after 50 receding steps must be 272, got ${x}`);
+  ok(!arrived, 'a target receding faster than he closes on it is never reached');
+}
+
+// A MOVING target that approaches him still steps the raw 5.44pt/step -
+// stepToward only knows the live gap, not the target's own velocity.
+function testStepTowardApproachingTarget(): void {
+  const speed = 340;
+  let x = 0;
+  let target = 300;
+  for (let i = 0; i < 3; i += 1) {
+    target -= 1.6; // approaches at 100pt/s over this 16ms step
+    const { x: nextX } = stepToward(x, target, speed, 16);
+    ok(
+      Math.abs(nextX - (x + 5.44)) < 1e-9,
+      `step ${i} toward an approaching target must still move 5.44pt`
+    );
+    x = nextX;
+  }
+}
+
+// A target that jumps to the other side of him mid-approach reverses -
+// same 5.44pt/step magnitude, opposite direction.
+function testStepTowardTargetJumpsSides(): void {
+  const speed = 340;
+  let x = 0;
+  ({ x } = stepToward(x, 300, speed, 16));
+  ({ x } = stepToward(x, 300, speed, 16));
+  ok(Math.abs(x - 10.88) < 1e-9, 'two steps toward 300 land at 10.88');
+  const jumpedTarget = x - 300; // now well to the left of x
+  const reversed = stepToward(x, jumpedTarget, speed, 16);
+  ok(
+    Math.abs(reversed.x - (x - 5.44)) < 1e-9,
+    'a target jumping to the other side reverses, still 5.44pt/step'
+  );
+}
+
+// Frame times that vary (8, 16, 33, 16, 8ms), none above FAR_STEP_MAX_DT_MS:
+// the distance covered equals speed * sum(dt) / 1000 exactly.
+function testStepTowardVariableFrameTimesSumExactly(): void {
+  const speed = 340;
+  const dts = [8, 16, 33, 16, 8];
+  let x = 0;
+  const target = 10_000; // far enough that no arrival interrupts the sum
+  for (const dt of dts) {
+    ({ x } = stepToward(x, target, speed, dt));
+  }
+  const totalDtS = dts.reduce((sum, dt) => sum + dt, 0) / 1000;
+  ok(
+    Math.abs(x - speed * totalDtS) < 1e-9,
+    `distance covered must equal speed * total dt exactly, got ${x}`
+  );
+}
+
+// literal expected values - a mutation that drops the lower dt clamp must fail
+function testStepTowardNegativeDtDoesNotMove(): void {
+  const result = stepToward(50, 300, 340, -5);
+  strictEqual(result.x, 50, 'a negative dt clamps to 0 - it must not step backward in time');
+  strictEqual(result.arrived, false);
+}
+
+// literal expected values - non-finite inputs and a non-positive speed are total, not NaN-producing
+function testStepTowardTotalOnNonFiniteAndBadSpeed(): void {
+  const infTarget = stepToward(10, Number.POSITIVE_INFINITY, 340, 16);
+  strictEqual(infTarget.x, 10);
+  strictEqual(infTarget.arrived, false);
+  const infSpeed = stepToward(10, 300, Number.POSITIVE_INFINITY, 16);
+  strictEqual(infSpeed.x, 10);
+  strictEqual(infSpeed.arrived, false);
+  const infDt = stepToward(10, 300, 340, Number.POSITIVE_INFINITY);
+  strictEqual(infDt.x, 10);
+  strictEqual(infDt.arrived, false);
+  const zeroSpeed = stepToward(10, 300, 0, 16);
+  strictEqual(zeroSpeed.x, 10, 'speed 0 must not freeze at a wrong x nor throw');
+  strictEqual(zeroSpeed.arrived, false);
+  const negSpeed = stepToward(10, 300, -5, 16);
+  strictEqual(negSpeed.x, 10, 'a negative speed must not reverse him');
+  strictEqual(negSpeed.arrived, false);
+  const nanCurrent = stepToward(Number.NaN, 300, 340, 16);
+  ok(Number.isNaN(nanCurrent.x), 'current itself not finite: x is returned as it is');
+  strictEqual(nanCurrent.arrived, false);
+}
+
+// literal expected values - never derived from planFarSample's own expression;
+// worked out from CHASE_TRAIL (18) + CHASE_SLACK (4) = 22 and chaseTargetX
+function testPlanFarSample(): void {
+  const screenWidth = WIDTH;
+  const endAtThreshold = planFarSample({ glassX: 122, currentX: 100, screenWidth });
+  strictEqual(endAtThreshold.kind, 'end', 'gap of exactly 22 is inside the not-chasing edge');
+  const tracksJustPast = planFarSample({ glassX: 122.1, currentX: 100, screenWidth });
+  strictEqual(tracksJustPast.kind, 'track');
+  if (tracksJustPast.kind === 'track') {
+    strictEqual(tracksJustPast.facing, 1);
+    ok(
+      Math.abs(tracksJustPast.target - 104.1) < 1e-9,
+      `expected 104.1, got ${tracksJustPast.target}`
+    );
+  }
+  const endAtNegThreshold = planFarSample({ glassX: 78, currentX: 100, screenWidth });
+  strictEqual(
+    endAtNegThreshold.kind,
+    'end',
+    'gap of exactly -22 is inside the not-chasing edge too'
+  );
+  const tracksJustPastNeg = planFarSample({ glassX: 77.9, currentX: 100, screenWidth });
+  strictEqual(tracksJustPastNeg.kind, 'track');
+  if (tracksJustPastNeg.kind === 'track') {
+    strictEqual(tracksJustPastNeg.facing, -1, 'a gap of -22.1 flips facing to -1');
+    ok(
+      Math.abs(tracksJustPastNeg.target - 95.9) < 1e-9,
+      `expected 95.9, got ${tracksJustPastNeg.target}`
+    );
+  }
+  const bigGapFlips = planFarSample({ glassX: 300, currentX: 0, screenWidth });
+  strictEqual(bigGapFlips.kind, 'track');
+  if (bigGapFlips.kind === 'track') {
+    strictEqual(bigGapFlips.facing, 1, 'a gap of 300 is a positive gap, facing 1');
+    strictEqual(bigGapFlips.target, 300 - 18, 'target is glass - 18 once facing is 1');
+  }
+  const clampedLeft = planFarSample({ glassX: 10, currentX: -20, screenWidth });
+  strictEqual(clampedLeft.kind, 'track');
+  if (clampedLeft.kind === 'track') {
+    strictEqual(clampedLeft.target, 0, 'chaseTargetX(10, 1, ...) = -8, clamped to the left edge');
+  }
+  const clampedRight = planFarSample({ glassX: 345, currentX: 400, screenWidth });
+  strictEqual(clampedRight.kind, 'track');
+  if (clampedRight.kind === 'track') {
+    strictEqual(
+      clampedRight.target,
+      348,
+      'chaseTargetX(345, -1, ...) = 363, clamped to the right edge (402 - 54)'
+    );
+  }
+  const nanGlassEnds = planFarSample({ glassX: Number.NaN, currentX: 100, screenWidth });
+  strictEqual(nanGlassEnds.kind, 'end', 'NaN glassX is total, not a track toward NaN');
+  const nanCurrentEnds = planFarSample({ glassX: 122.1, currentX: Number.NaN, screenWidth });
+  strictEqual(nanCurrentEnds.kind, 'end', 'NaN currentX is total, not a track toward NaN');
+  const infGlassEnds = planFarSample({
+    glassX: Number.POSITIVE_INFINITY,
+    currentX: 100,
+    screenWidth,
+  });
+  strictEqual(infGlassEnds.kind, 'end', 'Infinity glassX is total, not a track toward Infinity');
 }
 
 function testFocusFromSlot(): void {
@@ -926,6 +1194,17 @@ function main(): void {
   testPlanDragReleaseTable();
   testSelectsOnReleaseAllCombinations();
   testPlanApproach();
+  testIsFarGrab();
+  testSanitizeRunSpeed();
+  testStepToward();
+  testStepTowardFixedTargetStepCount();
+  testStepTowardRecedingTarget();
+  testStepTowardApproachingTarget();
+  testStepTowardTargetJumpsSides();
+  testStepTowardVariableFrameTimesSumExactly();
+  testStepTowardNegativeDtDoesNotMove();
+  testStepTowardTotalOnNonFiniteAndBadSpeed();
+  testPlanFarSample();
   testFocusFromSlot();
   testReplayFromPlanDragReleaseAwaitSnapsWhenCloseAtBlur();
   testReplayFromPlanDragReleaseGoesHomeWhenNothingSelects();
@@ -948,7 +1227,7 @@ function main(): void {
   testReduceReleaseSequenceN();
   testReduceReleaseSequenceO();
   // oxlint-disable-next-line no-console -- test runner reporting
-  console.log('42 passed (perch-handoff)');
+  console.log('53 passed (perch-handoff)');
 }
 
 main();

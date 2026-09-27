@@ -12,6 +12,7 @@ import Animated, {
   runOnJS,
   useAnimatedReaction,
   useAnimatedStyle,
+  useFrameCallback,
   useReducedMotion,
   useSharedValue,
   withDelay,
@@ -19,6 +20,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import type { FrameInfo } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCompanionConfig, useCompanionId } from './companion-provider';
@@ -56,16 +58,20 @@ import {
   applyFocusBlur,
   focusFromSlot,
   initialReleaseState,
+  isFarGrab,
   liveLastSeat,
   planApproach,
   planDragRelease,
+  planFarSample,
   planFocus,
   planMountSeatY,
   planStartSeatY,
   readPerchHandoff,
   reduceRelease,
   RELEASE_GRACE_MS,
+  sanitizeRunSpeed,
   selectsOnRelease,
+  stepToward,
   writePerchHandoff,
 } from './perch-handoff';
 import type { DragReleasePlan, ReleaseState } from './perch-handoff';
@@ -217,6 +223,10 @@ export function CompanionPerch({
   const reduceMotion = useReducedMotion();
   const id = useCompanionId();
   const profile = resolveProfile(id);
+  // sanitized once, shared by the tab-tap run leg, the release approach, and
+  // the drag's far approach - an unvalidated profile.runSpeed (0, negative,
+  // NaN) never freezes or reverses any of them
+  const runSpeed = useMemo(() => sanitizeRunSpeed(profile.runSpeed), [profile.runSpeed]);
   // profile.footPad is measured on the cell at reference size; pose layers
   // scale about the cell center, so the seat pads by the scaled figure
   const cellFootPad = profile.footPad ?? SPRITE_FOOT_PAD;
@@ -268,6 +278,69 @@ export function CompanionPerch({
     tabCenterX(readPerchHandoff().lastTab, screenWidth, anchor.slotCount, initialCenters)
   );
   const hop = useSharedValue(0);
+  // far-approach frame callback: steps x toward farTargetX at farApproachSpeed
+  // pt/s while farApproachActive is true, entirely on the UI thread - a fresh
+  // 'moved' sample only ever writes farTargetX, never restarts a clock (see
+  // the finger-source effect below and useFrameCallback further down)
+  const farTargetX = useSharedValue(0);
+  // mirror of farApproachRef below, written by JS for the worklet to read -
+  // JS itself never reads this back (writing then reading in the same tick
+  // returns the stale pre-write value; farApproachRef is the JS source of truth)
+  const farApproachActive = useSharedValue(false);
+  // the motion generation the running far approach belongs to, read only by
+  // the frame callback so its one runOnJS report is generation-gated like
+  // every other completion; farApproachGenerationRef below is JS's own copy
+  const farApproachGeneration = useSharedValue(0);
+  const farApproachSpeed = useSharedValue(runSpeed);
+  // JS-thread source of truth for "an approach owns x" - never the shared
+  // value above, which a same-tick JS read would see stale
+  const farApproachRef = useRef(false);
+  const farApproachGenerationRef = useRef(0);
+  // latest arrival handler, refreshed every render below (after arrive/rest
+  // exist) - same indirection as goHomeRef further down, so the frame
+  // callback's declaration order here doesn't have to wait on theirs
+  const farApproachArrivalRef = useRef<(generation: number) => void>(() => {
+    // replaced by the layout effect below before the frame callback can report
+  });
+  // stable bridge from the worklet's runOnJS into whatever the ref currently holds
+  const reportFarApproachArrival = useCallback((generation: number) => {
+    farApproachArrivalRef.current(generation);
+  }, []);
+  const farApproachTick = useCallback(
+    (frameInfo: FrameInfo) => {
+      'worklet';
+      if (!farApproachActive.get()) {
+        return;
+      }
+      // first frame after (re)activation reports null - treat as 0, not a huge step
+      const dtMs = frameInfo.timeSincePreviousFrame ?? 0;
+      const result = stepToward(x.get(), farTargetX.get(), farApproachSpeed.get(), dtMs);
+      x.set(result.x);
+      if (result.arrived) {
+        farApproachActive.set(false);
+        runOnJS(reportFarApproachArrival)(farApproachGeneration.get());
+      }
+    },
+    [
+      x,
+      farTargetX,
+      farApproachActive,
+      farApproachSpeed,
+      farApproachGeneration,
+      reportFarApproachArrival,
+    ]
+  );
+  // OFF by default: an idle screen must not wake the UI thread every frame.
+  // Turned on only while an approach is running (beginFarApproachIfNeeded)
+  // and off at every site that ends one (stopFarApproach).
+  const farApproachFrameCallback = useFrameCallback(farApproachTick, false);
+  // Clears the JS/shared approach state and stops the frame callback - called
+  // from every site that ends an approach, whether by arrival or by interrupt.
+  const stopFarApproach = useCallback(() => {
+    farApproachRef.current = false;
+    farApproachActive.set(false);
+    farApproachFrameCallback.setActive(false);
+  }, [farApproachActive, farApproachFrameCallback]);
   // vertical offset from this seat, in pt DOWNWARD (0 = seated). Seeded from
   // the same planner the focus effect uses, not useSharedValue(0) - otherwise
   // the mount frame flashes at this instance's own seat before focus snaps it.
@@ -384,13 +457,14 @@ export function CompanionPerch({
   useEffect(
     () => () => {
       mountedRef.current = false;
+      stopFarApproach();
       const { state, effect } = reduceRelease(releaseStateRef.current, { type: 'unmount' });
       releaseStateRef.current = state;
       if (effect === 'clear-timer') {
         clearReleaseTimer(releaseTimerRef);
       }
     },
-    []
+    [stopFarApproach]
   );
   // generation-gates late spring `finished` (up to ~5s) - mountedRef alone
   // would sit the companion mid-air on a newer chase.
@@ -446,6 +520,20 @@ export function CompanionPerch({
     // intentionally no pose change
   }, []);
 
+  // The worklet's one arrival report: acts only when an approach is still
+  // ours (farApproachRef) and belongs to this motion (generation match); a
+  // report failing either test is ignored, so a still finger after a far
+  // grab ends in the rest pose, never running in place.
+  useLayoutEffect(() => {
+    farApproachArrivalRef.current = (generation: number) => {
+      if (!farApproachRef.current || generation !== motionGenerationRef.current) {
+        return;
+      }
+      stopFarApproach();
+      arrive(generation);
+    };
+  });
+
   // Distance-aware approach to targetX, used by every release/await/timeout
   // path: a spring under one glass width, a constant-speed run otherwise.
   // No reaction delay, no hop - he is already moving, not starting cold.
@@ -456,7 +544,7 @@ export function CompanionPerch({
       if (direction !== facingRef.current) {
         face(direction);
       }
-      const plan = planApproach(targetX - liveX, profile.runSpeed);
+      const plan = planApproach(targetX - liveX, runSpeed);
       if (plan.kind === 'spring') {
         x.set(
           withSpring(targetX, profile.catchSpring, (finished) => {
@@ -479,7 +567,7 @@ export function CompanionPerch({
         )
       );
     },
-    [x, face, profile, arrive]
+    [x, face, profile, arrive, runSpeed]
   );
 
   // Plain (no around/resumed route) run-chase leg: a constant-speed run
@@ -497,7 +585,7 @@ export function CompanionPerch({
     ) => {
       face(targetX >= fromX ? 1 : -1);
       const distance = Math.abs(targetX - fromX);
-      const runMs = traverseDurationMs(distance, profile.runSpeed);
+      const runMs = traverseDurationMs(distance, runSpeed);
       motionSpringRef.current = profile.commitSpring;
       setPose('run');
       // constant-speed run leg, not distance-keyed spring physics, so a
@@ -534,7 +622,7 @@ export function CompanionPerch({
       );
       seatY.set(arrivedByDrag ? seatLeg : withDelay(CHASE_REACTION_MS, seatLeg));
     },
-    [face, profile, x, hop, seatY, arrive]
+    [face, profile, x, hop, seatY, arrive, runSpeed]
   );
 
   // Snap-to-seat catch: an instant teleport normally, but an arrived-by-drag
@@ -716,6 +804,9 @@ export function CompanionPerch({
       holdRun: interrupted !== null,
     });
     const generation = bumpMotion();
+    // a focus always re-plans x - the far approach must not keep stepping
+    // it underneath whatever this focus is about to do
+    stopFarApproach();
     cancelAnimation(x);
     // read before x.set(plan.fromX) below overwrites it - a snap-to-seat
     // plan bakes fromX to targetX, so this is the only place the real
@@ -798,6 +889,9 @@ export function CompanionPerch({
           return;
         }
         const seat = tabCenterX(anchor.slotIndex, screenWidth, anchor.slotCount, centers);
+        // dragEngagedRef above already rules this out whenever a far
+        // approach could be running; stop it again here defensively
+        stopFarApproach();
         x.set(seat);
         if (plan.commitsHandoff) {
           // same shape planFocus writes for a settled seat: lastX null means
@@ -848,6 +942,7 @@ export function CompanionPerch({
         interruptedRouteRef.current === null
           ? liveLastSeat(bottomExtra, seatY.get())
           : liveLastSeat(bottomExtra, 0);
+      stopFarApproach();
       cancelAnimation(x);
       cancelRoute();
       bumpMotion();
@@ -891,6 +986,7 @@ export function CompanionPerch({
     cellFootPad,
     perchBottomOffset,
     transientSlot,
+    stopFarApproach,
     runPlainChase,
     catchAtSeat,
     runResumedRoute,
@@ -980,6 +1076,8 @@ export function CompanionPerch({
       }
       dragEngagedRef.current = false;
       chasingRef.current = false;
+      // before the release approach or the trip home takes x over
+      stopFarApproach();
       dragStartXRef.current = null;
       const releaseX =
         prevDragTargetRef.current ??
@@ -1042,7 +1140,83 @@ export function CompanionPerch({
       barScrub,
       onDragRelease,
       settleAfterRelease,
+      stopFarApproach,
     ]
+  );
+
+  // Far is judged from where the finger came down, not from this sample: a
+  // fast flick that starts on him keeps the spring follower. The sample that
+  // starts an approach does nothing else, and bumps the generation once.
+  const beginFarApproachIfNeeded = useCallback(
+    (startX: number, glassAtEngage: number): boolean => {
+      if (!isFarGrab(glassTargetX(startX, screenWidth) - x.get())) {
+        return false;
+      }
+      // the engage sample itself goes through the same leash test as every
+      // later sample - a landing spot behind him (within the not-chasing
+      // edge) must fall through to the ordinary leash, not start a run
+      const plan = planFarSample({ glassX: glassAtEngage, currentX: x.get(), screenWidth });
+      if (plan.kind === 'end') {
+        return false;
+      }
+      // starting the far approach: it, not any leftover spring, owns x
+      cancelAnimation(x);
+      const generation = bumpMotion();
+      farApproachGenerationRef.current = generation;
+      farApproachGeneration.set(generation);
+      farApproachSpeed.set(runSpeed);
+      if (plan.facing !== facingRef.current) {
+        face(plan.facing);
+      }
+      farTargetX.set(plan.target);
+      motionSpringRef.current = profile.trackSpring;
+      setPose('run');
+      farApproachRef.current = true;
+      farApproachActive.set(true);
+      farApproachFrameCallback.setActive(true);
+      return true;
+    },
+    [
+      screenWidth,
+      x,
+      bumpMotion,
+      farApproachGeneration,
+      farApproachSpeed,
+      runSpeed,
+      face,
+      farTargetX,
+      profile,
+      farApproachActive,
+      farApproachFrameCallback,
+    ]
+  );
+
+  // During an approach JS only writes the target; the frame callback moves x.
+  // JS reads farApproachRef, never the shared flag: a shared value set from
+  // JS is applied later, so reading it back in the same tick returns the old one.
+  const trackFarApproachSample = useCallback(
+    (glassTarget: number): boolean => {
+      if (!farApproachRef.current) {
+        return false;
+      }
+      const plan = planFarSample({
+        glassX: glassTarget,
+        currentX: x.get(),
+        screenWidth,
+      });
+      if (plan.kind === 'end') {
+        const generation = farApproachGenerationRef.current;
+        stopFarApproach();
+        arrive(generation);
+        return true;
+      }
+      if (plan.facing !== facingRef.current) {
+        face(plan.facing);
+      }
+      farTargetX.set(plan.target);
+      return true;
+    },
+    [x, screenWidth, face, farTargetX, stopFarApproach, arrive]
   );
 
   useEffect(() => {
@@ -1068,6 +1242,7 @@ export function CompanionPerch({
             dragStartXRef.current = event.x;
             dragEngagedRef.current = false;
             chasingRef.current = false;
+            stopFarApproach();
             // A touch on the bar may turn out to be a TAP: while a release
             // is pending, bumping the motion generation or clearing the
             // timer here would strand the companion over the wrong tab in
@@ -1088,12 +1263,15 @@ export function CompanionPerch({
             }
             return;
           }
+          const glassTarget = glassTargetX(event.x, screenWidth);
+          let startedFarApproach = false;
           if (!dragEngagedRef.current) {
             const startX = dragStartXRef.current ?? event.x;
             if (Math.abs(event.x - startX) <= DRAG_ENGAGE_PT) {
               return;
             }
             dragEngagedRef.current = true;
+            startedFarApproach = beginFarApproachIfNeeded(startX, glassTarget);
             // a real drag is engaging: any release it was waiting on no longer applies
             const { state, effect } = reduceRelease(releaseStateRef.current, { type: 'engage' });
             releaseStateRef.current = state;
@@ -1101,7 +1279,6 @@ export function CompanionPerch({
               clearReleaseTimer(releaseTimerRef);
             }
           }
-          const glassTarget = glassTargetX(event.x, screenWidth);
           prevDragTargetRef.current = glassTarget;
           if (bottomExtra > 0) {
             // the drag happens ON the glass: drop from a raised seat to
@@ -1112,12 +1289,24 @@ export function CompanionPerch({
           // position, for the cross-screen handoff on release.
           writePerchHandoff(applyDragTrack(readPerchHandoff(), glassTarget));
 
+          if (startedFarApproach) {
+            // the sample that started the approach does nothing else -
+            // no leash, no extra bumpMotion/chasingRef, no spring
+            return;
+          }
+          if (trackFarApproachSample(glassTarget)) {
+            return;
+          }
+
           // Leash follower: inside CHASE_TRAIL he stands his ground - chasing
           // the trailing point from a standstill floated him backward while
           // facing forward. He only ever runs toward the glass.
           const step = chaseStep(glassTarget, x.get(), facingRef.current, chasingRef.current);
           if (step.target === null) {
             chasingRef.current = false;
+            // the far-approach branch above already returned when active;
+            // this stand-down is always the leash's, never the far run's
+            stopFarApproach();
             // soft-brake here: assigning x cancels the in-flight spring, else a
             // still-running commit-chase keeps sliding him under the idle sprite
             x.set(withSpring(x.get(), profile.trackSpring));
@@ -1153,6 +1342,7 @@ export function CompanionPerch({
         onError(error, 'perch.drag');
         dragEngagedRef.current = false;
         chasingRef.current = false;
+        stopFarApproach();
         dragStartXRef.current = null;
         prevDragTargetRef.current = null;
         const { state, effect } = reduceRelease(releaseStateRef.current, { type: 'abort' });
@@ -1185,6 +1375,7 @@ export function CompanionPerch({
       // blur can outrun the gesture's ended event
       dragEngagedRef.current = false;
       chasingRef.current = false;
+      stopFarApproach();
       dragStartXRef.current = null;
       // this effect re-subscribes on every dependency change, including
       // onDragRelease - a host passing an inline callback changes it every
@@ -1211,6 +1402,9 @@ export function CompanionPerch({
     bumpMotion,
     face,
     profile,
+    stopFarApproach,
+    beginFarApproachIfNeeded,
+    trackFarApproachSample,
     transientSlot,
     onError,
     onDragRelease,
