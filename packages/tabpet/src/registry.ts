@@ -62,9 +62,12 @@ export interface CompanionProfile {
    * edge). On the iOS 26 pill the measured top is the glass rim, so a
    * companion meant to sit ON it sets this near 0. */
   seatLift?: number;
-  /** Ground speed in pt/s for the tab-tap run leg; omit for the shared
+  /** Ground speed in pt/s for the tab-tap run leg, the release approach, and
+   * a drag's far approach to the finger; omit for the shared
    * TRAVERSE_SPEED_PT_S (340). The duration clamps stretch with it, so a
-   * slow animal stays slow on a one-slot hop too. */
+   * slow animal stays slow on a one-slot hop too. Sanitized before use
+   * (sanitizeRunSpeed), so a zero, negative, or non-finite override falls
+   * back to the shared default rather than freezing or reversing a run. */
   runSpeed?: number;
   /** Sit sheet grid and playback rate; omit for the shared 5x5x25 @ 12fps.
    * A 24fps source cut 1:1 (10x5x50 @ 24) plays the settle without the

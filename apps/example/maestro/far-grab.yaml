@@ -1,0 +1,38 @@
+# Companion piece to drag-release.yaml: the grab starts far from a SEATED
+# companion, not next to him mid-transition. He settles on Explore first
+# (tapOn Explore, not Home), then the deep link only changes the demo params
+# on the already-mounted Explore route - no navigation - so the scripted
+# finger begins on the far tab (the slot furthest from Explore) while he is
+# still seated on Explore. A host app's own navigation then lands `lag` ms
+# after the scripted release, not the script's first event, standing in for
+# a slow host app; the default lag is 250ms. Pair with a screen recording
+# and `tools/frame-stack.sh` for frames.
+#
+# This default script is short - three samples in 48ms, a 24pt lunge - too
+# short to show a full approach; use far-grab-hold.yaml for that. What a
+# reviewer should see in these frames, for the APPROACH: with the fix he
+# takes a lunge of a few frames toward the finger before the release run
+# takes over once it lifts, not a quarter-second crossing of the bar.
+#
+# For the RELEASE, once the finger lands: with the fix and the default lag,
+# he heads to the release slot, seats there, and stays put once the
+# navigation lands. Without the fix, he runs back toward the old slot first,
+# then turns round once the new selection arrives. A lag above 800ms (the
+# library's grace window) shows the fallback either way: he waits at the
+# release slot, gives up, runs home, then turns round when the navigation
+# lands. Maestro cannot measure x - the frames are the evidence, not this
+# flow's exit status.
+appId: dev.example.companion
+---
+- launchApp
+- waitForAnimationToEnd
+- tapOn: 'Explore'
+- waitForAnimationToEnd
+- openLink: companion://explore?demo=far-grab
+# iOS confirms a custom-scheme link opened from outside the app
+- tapOn:
+    text: 'Open'
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: maestro/out/fg1-far-grab-settled

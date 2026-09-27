@@ -12,3 +12,7 @@ export const SLOT_COUNT = TABS.length;
 export function slotIndex(name: TabName): number {
   return TABS.findIndex((t) => t.name === name);
 }
+/** expo-router path for a tab; the index route has no segment of its own. */
+export function tabRoute(name: TabName): string {
+  return name === 'index' ? '/(tabs)' : `/(tabs)/${name}`;
+}

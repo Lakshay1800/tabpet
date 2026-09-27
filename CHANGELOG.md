@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: a drag released over another tab no longer runs back to the old tab before the selection lands.
+- Fixed: onDragRelease is no longer called for a cancelled drag.
+- Changed: a release or cancel far from the companion's seat runs home at its run speed instead of crossing the bar on one spring.
+- Fixed: a drag that starts far from the companion now runs to the finger at its run speed, steadily, instead of crossing the bar in a quarter second.
+
 ## 0.2.1
 
 - Docs: the per-animal entry reads `react-native-tabpet/animals/<id>` everywhere, including the source comment that ships in the package. The npm README now points at the bare entry for shipping one animal.
