@@ -4,7 +4,7 @@
  * transientSlot never reads or writes this store - a pushed screen must not
  * skew the next genuine tab chase.
  */
-import { tabCenterX, shouldSnapToSeat } from './perch-geometry';
+import { tabCenterX, shouldSnapToSeat, traverseDurationMs } from './perch-geometry';
 
 export interface PerchHandoffState {
   lastTab: number;
@@ -212,4 +212,177 @@ export function applyDragRelease(
     return handoff;
   }
   return { ...handoff, lastX: args.releaseX, lastSeat: args.bottomExtra };
+}
+
+/** How long a release over another slot waits for the host's selection
+ *  before going home. Short loses to a busy JS thread - the timer and the
+ *  navigation update become runnable together; long only costs a pause
+ *  over the wrong tab when no selection ever comes. */
+export const RELEASE_GRACE_MS = 800;
+
+export type DragReleasePlan = { kind: 'home' } | { kind: 'await'; slot: number };
+
+/** Whether anything will select the released-over slot. The bar decides, not
+ *  the touch source: a wrapped native recognizer still rides a bar whose pill
+ *  selects on release. A classic bar has no pill and does not select on
+ *  touch-up; a pill the host passed for its own bar does not count. */
+export function selectsOnRelease(args: {
+  barScrub: 'native' | 'exclusive';
+  hasOnDragRelease: boolean;
+  nativePill: boolean;
+}): boolean {
+  return (
+    (args.barScrub === 'exclusive' && args.hasOnDragRelease) ||
+    (args.barScrub === 'native' && args.nativePill)
+  );
+}
+
+/** A cancelled drag, and a release on its own slot or over a slot nothing
+ *  will select, are a chase only - the companion walks back to its seat.
+ *  Only an ended release over a different slot that selectsOnRelease is
+ *  worth waiting on. */
+export function planDragRelease(args: {
+  phase: 'ended' | 'cancelled';
+  releaseSlot: number;
+  currentSlot: number;
+  selectsOnRelease: boolean;
+}): DragReleasePlan {
+  if (args.phase === 'ended' && args.releaseSlot !== args.currentSlot && args.selectsOnRelease) {
+    return { kind: 'await', slot: args.releaseSlot };
+  }
+  return { kind: 'home' };
+}
+
+export type ApproachPlan = { kind: 'spring' } | { kind: 'run'; durationMs: number };
+
+/** Under one glass width a catch reads fine as a spring; farther, a
+ *  constant-speed run so a long release-driven approach doesn't teleport. */
+export function planApproach(distancePt: number, speedPtS?: number): ApproachPlan {
+  const distance = Math.abs(distancePt);
+  if (shouldSnapToSeat(distance)) {
+    return { kind: 'spring' };
+  }
+  return { kind: 'run', durationMs: traverseDurationMs(distance, speedPtS) };
+}
+
+/** A drag that arrives by drag must not be mistaken for an end-to-end tap
+ *  and sent round the pill - the focused slot wins as the route's origin
+ *  whenever the reducer says this focus is arriving by drag, whatever slot
+ *  the bar's own hit test actually picked. */
+export function focusFromSlot(
+  handoffLastTab: number,
+  arrivedByDrag: boolean,
+  focusedSlot: number
+): number {
+  return arrivedByDrag ? focusedSlot : handoffLastTab;
+}
+
+/** A release that is waiting for its selection. The perch keeps this in a
+ *  ref and acts on the effect reduceRelease returns; it decides nothing itself. */
+export interface ReleaseState {
+  pending: { fromSlot: number; slot: number; generation: number } | null;
+  arrival: boolean;
+}
+
+export function initialReleaseState(): ReleaseState {
+  return { pending: null, arrival: false };
+}
+
+export type ReleaseEvent =
+  | { type: 'release'; plan: DragReleasePlan; fromSlot: number; generation: number }
+  | { type: 'began' }
+  | { type: 'engage' }
+  | { type: 'focus-cleanup' }
+  | { type: 'focus-body'; transientSlot: boolean }
+  | { type: 'timer'; mounted: boolean; generation: number; renderedSlot: number }
+  | { type: 'abort' }
+  | { type: 'unmount' };
+
+export type ReleaseEffect =
+  | 'none'
+  | 'go-home'
+  | 'await'
+  | 'clear-timer'
+  | 'hold-generation'
+  | 'arrived';
+
+/** Unmounted or a newer motion: drop the wait. Slot already changed: keep
+ *  pending, the focus cleanup about to run turns it into an arrival. */
+function reduceTimer(
+  state: ReleaseState,
+  event: { mounted: boolean; generation: number; renderedSlot: number }
+): { state: ReleaseState; effect: ReleaseEffect } {
+  if (state.pending === null) {
+    return { state, effect: 'none' };
+  }
+  const { pending } = state;
+  if (!event.mounted || event.generation !== pending.generation) {
+    return { state: { ...state, pending: null }, effect: 'none' };
+  }
+  if (event.renderedSlot !== pending.fromSlot) {
+    return { state, effect: 'none' };
+  }
+  return { state: { ...state, pending: null }, effect: 'go-home' };
+}
+
+/** began keeps state: the touch may be a tap, and ending the wait on it
+ *  strands him over the wrong tab with no fallback. focus-cleanup ends any
+ *  wait, since the focus body re-plans x. */
+export function reduceRelease(
+  state: ReleaseState,
+  event: ReleaseEvent
+): { state: ReleaseState; effect: ReleaseEffect } {
+  switch (event.type) {
+    case 'release': {
+      if (event.plan.kind === 'home') {
+        return { state: { ...state, pending: null }, effect: 'go-home' };
+      }
+      return {
+        state: {
+          ...state,
+          pending: {
+            fromSlot: event.fromSlot,
+            slot: event.plan.slot,
+            generation: event.generation,
+          },
+        },
+        effect: 'await',
+      };
+    }
+    case 'began': {
+      return { state, effect: state.pending === null ? 'none' : 'hold-generation' };
+    }
+    case 'engage': {
+      const hadPending = state.pending !== null;
+      return { state: { ...state, pending: null }, effect: hadPending ? 'clear-timer' : 'none' };
+    }
+    case 'focus-cleanup': {
+      const hadPending = state.pending !== null;
+      return {
+        state: { pending: null, arrival: hadPending },
+        effect: hadPending ? 'clear-timer' : 'none',
+      };
+    }
+    case 'focus-body': {
+      const arrived = state.arrival && !event.transientSlot;
+      return { state: { ...state, arrival: false }, effect: arrived ? 'arrived' : 'none' };
+    }
+    case 'timer': {
+      return reduceTimer(state, event);
+    }
+    case 'abort': {
+      const hadPending = state.pending !== null;
+      return { state: { ...state, pending: null }, effect: hadPending ? 'clear-timer' : 'none' };
+    }
+    case 'unmount': {
+      const hadPending = state.pending !== null;
+      return {
+        state: { pending: null, arrival: false },
+        effect: hadPending ? 'clear-timer' : 'none',
+      };
+    }
+    default: {
+      return { state, effect: 'none' };
+    }
+  }
 }

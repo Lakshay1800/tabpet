@@ -153,7 +153,7 @@ Gotcha: on iOS 26 the tab-switch cross-fade blends through the system backdrop. 
 
 ## Custom JS tab bars
 
-If you built your own tab bar in JS, there is no `UITabBar` to measure, so pass the geometry yourself, all in window space: `slotCenters` (x of each item), `barTop` (y of the bar's top edge), and `pill` (the floating pill's frame, or `null` for a bar without one, which also disables the around route). Measure them with `onLayout` plus `measureInWindow` on your bar. For the chase, `useGestureFingerSource()` returns `{ source, gesture }`: attach `gesture` to your bar with `GestureDetector` and pass `source` as `fingerSource`. Pass `fingerSource={null}` for no chase.
+If you built your own tab bar in JS, there is no `UITabBar` to measure, so pass the geometry yourself, all in window space: `slotCenters` (x of each item), `barTop` (y of the bar's top edge), and `pill` (the floating pill's frame, or `null` for a bar without one, which also disables the around route). Measure them with `onLayout` plus `measureInWindow` on your bar. For the chase, `useGestureFingerSource()` returns `{ source, gesture }`: attach `gesture` to your bar with `GestureDetector` and pass `source` as `fingerSource`. Pass `fingerSource={null}` for no chase. Build `slotCenters`/`pill`/`barTop` once with `useMemo` - a new array or object on every render re-runs the focus effect and ends a wait in progress.
 
 ```tsx
 const { source, gesture } = useGestureFingerSource();
