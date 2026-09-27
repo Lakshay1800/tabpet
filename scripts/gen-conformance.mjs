@@ -96,6 +96,16 @@
  * | pose-dissolve   | poseDissolveApplyOrder | exact | branch only |
  * | pose-dissolve   | shouldResetIncomingFrame | exact | branch only |
  * | pose-dissolve   | shouldSnapBusyIdleFrameToRest | exact | branch only |
+ * | animals         | animalProfile      | exact     | data, no computation |
+ *
+ * animals.json is not a function-conformance file like the four above: each
+ * case is one of the six built-in profiles as the TS registry resolves it
+ * (registerBuiltinCompanions, then getCompanion(id)), not a call over swept
+ * arguments. Its constants block carries the flattened idle/run/sit sheet
+ * grids from sheet-geometry.ts. The animal modules import PNGs, which Node
+ * cannot load as ESM on its own; scripts/png-stub-loader.mjs stubs that one
+ * specifier shape so the real TypeScript profiles load unmodified - the
+ * numbers below come from resolveProfile, never hand-typed.
  *
  * File-size note: perch-around's planAroundPath/aroundPose/resumeAroundRoute/
  * resumedPose/resumedBaseS return or consume an AroundPath (a 33-entry
@@ -104,6 +114,7 @@
  * guideline to keep conformance/around.json under ~400 KB - see
  * deviationsFromSpec in the PR/task notes.
  */
+import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 
@@ -170,9 +181,24 @@ import {
   shouldResetIncomingFrame,
   shouldSnapBusyIdleFrameToRest,
 } from '../packages/tabpet/src/pose-dissolve';
+// registers scripts/png-stub-loader.mjs before any animal module (which
+// imports PNGs) is loaded below - must run before the dynamic imports, not
+// just before they're used.
+import './png-stub-loader.mjs';
+import {
+  DEFAULT_SIT_SHEET,
+  IDLE_SHEET_GRID,
+  RUN_SHEET_GRID,
+} from '../packages/tabpet/src/sheet-geometry';
 
 const root = path.resolve(import.meta.dirname, '..');
 const outDir = path.join(root, 'conformance');
+
+// dynamic: these modules import PNGs, which only resolve once the loader
+// hook above has registered - a static import would race it.
+const { registerBuiltinCompanions } = await import('../packages/tabpet/src/animals/all');
+const { getCompanion, companionIds } = await import('../packages/tabpet/src/registry');
+registerBuiltinCompanions();
 
 // ---------------------------------------------------------------------------
 // wire-format encoding
@@ -2520,6 +2546,123 @@ function genPoseDissolve() {
 }
 
 // ---------------------------------------------------------------------------
+// animals
+// ---------------------------------------------------------------------------
+
+function encSpring(s) {
+  return { duration: encodeNumber(s.duration), dampingRatio: encodeNumber(s.dampingRatio) };
+}
+
+function encSheetGeometry(g) {
+  return isNullish(g)
+    ? null
+    : { cols: g.cols, rows: g.rows, frames: g.frames, fps: encodeNumber(g.fps) };
+}
+
+// every numeric field of CompanionProfile - optional ones stay present with
+// their nil-ness recorded (null), never omitted, so a Swift decode can't
+// mistake "not in the fixture" for "the TS side had none"
+function encAnimalProfile(p) {
+  return {
+    id: p.id,
+    label: p.label,
+    runFps: encodeNumber(p.runFps),
+    commitSpring: encSpring(p.commitSpring),
+    trackSpring: encSpring(p.trackSpring),
+    catchSpring: encSpring(p.catchSpring),
+    hopHeight: encodeNumber(p.hopHeight),
+    flightLift: encodeNumber(p.flightLift),
+    scale: encodeNumber(p.scale),
+    aroundRoute: p.aroundRoute,
+    headPad: encOrNull(p.headPad),
+    footPad: encOrNull(p.footPad),
+    seatLift: encOrNull(p.seatLift),
+    runSpeed: encOrNull(p.runSpeed),
+    sitSheet: encSheetGeometry(p.sitSheet),
+  };
+}
+
+// the order registerBuiltinCompanions registers them in (animals/all.ts,
+// preserved by companionIds()'s Object.keys) - the Swift umbrella's
+// registerAll must match this order too. Read from the registry itself
+// not a literal list, so a seventh animal registered the documented
+// way shows up here without anyone editing this file.
+function genAnimals() {
+  return companionIds().map((id) => {
+    const profile = getCompanion(id);
+    if (!profile) {
+      throw new Error(
+        `animals conformance: "${id}" is not registered by registerBuiltinCompanions`
+      );
+    }
+    return {
+      fn: 'animalProfile',
+      args: { id },
+      expect: encAnimalProfile(profile),
+      compare: 'exact',
+    };
+  });
+}
+
+/** SHA-256 hex digest of a file's raw bytes - what enforces `.copy`
+ *  over `.process` on the Swift side: a test hashes the bundled sheet and
+ *  compares against this, so any recompression the build applies fails it. */
+function sha256Hex(filePath) {
+  return createHash('sha256').update(readFileSync(filePath)).digest('hex');
+}
+
+/** Extra top-level payload for the "animals" module only: SHA-256 of every
+ *  bundled sheet and of the shared LICENSE-ART.md, keyed by animal id in
+ *  registry order. Not part of `cases` - it isn't a function-call fixture,
+ *  it's a asset-integrity fixture the Swift hash test cross-checks against
+ *  its own pinned literals (see AssetHashes.swift). */
+function genAssetHashes() {
+  const assetsDir = path.join(root, 'packages/tabpet/assets');
+  const license = sha256Hex(path.join(assetsDir, 'LICENSE-ART.md'));
+  const sheets = {};
+  for (const id of companionIds()) {
+    sheets[id] = {
+      idle: sha256Hex(path.join(assetsDir, `${id}-idle-sprite.png`)),
+      run: sha256Hex(path.join(assetsDir, `${id}-run-sprite.png`)),
+      sit: sha256Hex(path.join(assetsDir, `${id}-sit-sprite.png`)),
+    };
+  }
+  return { assetHashes: { license, sheets } };
+}
+
+/** Renders swift/Tests/TabPetAnimalsTests/AssetHashes.swift from a built
+ *  "animals" payload - the pinned digests a contributor adding an animal
+ *  would otherwise have to copy by hand from animals.json. `ids` is the
+ *  registry order (matches the payload's own case order), so the emitted
+ *  dictionary lists animals in the same order every other animals.json
+ *  consumer does. */
+function renderAssetHashesSwift(payload, ids) {
+  const entries = ids
+    .map((id) => {
+      const h = payload.assetHashes.sheets[id];
+      return `    "${id}": PinnedSheetHashes(\n        idle: "${h.idle}",\n        run: "${h.run}",\n        sit: "${h.sit}"\n    ),`;
+    })
+    .join('\n');
+  return `// GENERATED by \`bun run conformance\` - do not hand-edit. Pinned SHA-256
+// digests of every built-in animal's bundled sheets and the shared
+// LICENSE-ART.md, read straight from packages/tabpet/assets/ so a
+// contributor adding an animal never copies a digest by hand; \`bun run
+// conformance --check\` fails if this file drifts from animals.json's own copy.
+let pinnedLicenseSHA256 = "${payload.assetHashes.license}"
+
+struct PinnedSheetHashes {
+    let idle: String
+    let run: String
+    let sit: String
+}
+
+let pinnedSheetSHA256: [String: PinnedSheetHashes] = [
+${entries}
+]
+`;
+}
+
+// ---------------------------------------------------------------------------
 // write / check
 // ---------------------------------------------------------------------------
 
@@ -2565,6 +2708,33 @@ const MODULES = [
     // every numeric constant pose-dissolve.ts exports (PUP_POSES is a string array, not numeric)
     constants: { POSE_FADE_MS },
   },
+  {
+    name: 'animals',
+    source: 'packages/tabpet/src/animals/all.ts',
+    file: 'animals.json',
+    gen: genAnimals,
+    extra: genAssetHashes,
+    // this module also writes a companion Swift literal file (a contributor
+    // adding an animal must not hand-copy digests) - see renderAssetHashesSwift.
+    swiftFile: 'swift/Tests/TabPetAnimalsTests/AssetHashes.swift',
+    renderSwiftFile: renderAssetHashesSwift,
+    // sheet-geometry.ts's grids, flattened - each is a {cols,rows,frames,fps?}
+    // object, but the constants block (like every module's) is a flat
+    // name->number map
+    constants: {
+      idleCols: IDLE_SHEET_GRID.cols,
+      idleRows: IDLE_SHEET_GRID.rows,
+      idleFrames: IDLE_SHEET_GRID.frames,
+      idleFps: IDLE_SHEET_GRID.fps,
+      runCols: RUN_SHEET_GRID.cols,
+      runRows: RUN_SHEET_GRID.rows,
+      runFrames: RUN_SHEET_GRID.frames,
+      sitCols: DEFAULT_SIT_SHEET.cols,
+      sitRows: DEFAULT_SIT_SHEET.rows,
+      sitFrames: DEFAULT_SIT_SHEET.frames,
+      sitFps: DEFAULT_SIT_SHEET.fps,
+    },
+  },
 ];
 
 /** encodes a module's pinned constants the same way as any other wrapped
@@ -2579,12 +2749,17 @@ function encodeConstants(constants) {
 }
 
 function buildPayload(mod) {
-  return {
+  const payload = {
     module: mod.name,
     source: mod.source,
     constants: encodeConstants(mod.constants),
     cases: mod.gen(),
   };
+  // only the "animals" module sets this (the SHA-256 asset-integrity block)
+  if (mod.extra) {
+    Object.assign(payload, mod.extra());
+  }
+  return payload;
 }
 
 function renderPayload(payload) {
@@ -2688,6 +2863,11 @@ function firstStructuralDiff(fileLabel, fresh, committed, wideTolerance = false)
   const argsMode = wideTolerance ? 'tolerance' : 'exact';
   if (!structuralEqual(fresh.constants, committed.constants, argsMode)) {
     return `${fileLabel}: constants differ`;
+  }
+  // only "animals" carries this (plain hex strings, no wrapped floats, so a
+  // straight JSON comparison is exact either way - no tolerance concern)
+  if (JSON.stringify(fresh.assetHashes) !== JSON.stringify(committed.assetHashes)) {
+    return `${fileLabel}: assetHashes differ`;
   }
   if (fresh.cases.length !== committed.cases.length) {
     return `${fileLabel}: case count ${committed.cases.length} -> ${fresh.cases.length}`;
@@ -2862,6 +3042,28 @@ function main() {
         );
         stale = true;
       }
+      // the generated Swift literal file, checked the same way: these are
+      // plain hex strings and identifiers, deterministic across Node/V8
+      // builds, so a byte-exact comparison is exact here (unlike the JSON
+      // payload's trig-derived floats above).
+      if (mod.swiftFile) {
+        const swiftPath = path.join(root, mod.swiftFile);
+        const swiftLabel = mod.swiftFile;
+        const freshSwift = mod.renderSwiftFile(payload, companionIds());
+        if (existsSync(swiftPath) && readFileSync(swiftPath, 'utf-8') === freshSwift) {
+          console.log(`conformance --check: ${swiftLabel} up to date`);
+        } else if (existsSync(swiftPath)) {
+          console.error(
+            `conformance --check: ${swiftLabel} is stale - run \`bun run conformance\` and commit the result`
+          );
+          stale = true;
+        } else {
+          console.error(
+            `conformance --check: ${swiftLabel} is missing - run \`bun run conformance\` and commit the result`
+          );
+          stale = true;
+        }
+      }
     }
     if (stale) {
       process.exit(1);
@@ -2878,6 +3080,13 @@ function main() {
     const rendered = renderPayload(payload);
     writeFileSync(outPath, rendered);
     console.log(`conformance: wrote ${label} (${rendered.length} bytes)`);
+
+    if (mod.swiftFile) {
+      const swiftPath = path.join(root, mod.swiftFile);
+      const renderedSwift = mod.renderSwiftFile(payload, companionIds());
+      writeFileSync(swiftPath, renderedSwift);
+      console.log(`conformance: wrote ${mod.swiftFile} (${renderedSwift.length} bytes)`);
+    }
   }
 }
 

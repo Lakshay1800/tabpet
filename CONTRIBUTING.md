@@ -2,7 +2,7 @@
 
 ## Setup
 
-- Bun 1.3 or later (Node 22 or newer)
+- Bun 1.3 or later (Node 22.15 or newer - the conformance generator's PNG-stub module hook needs `node:module`'s `registerHooks`)
 - `bun install` from the repo root
 - `bun run check` runs leak-check, typecheck, fmt:check, lint, and test
 - `bun run test` runs every `*.test.ts` under tsx via `node scripts/run-tests.mjs`
@@ -50,7 +50,7 @@ With a pattern configured the check covers tracked files and new files that are 
 
 ## Conformance Fixtures
 
-`conformance/*.json` (one file per module: geometry, around, handoff, pose-dissolve) are golden test vectors generated from the TypeScript pure functions in `packages/tabpet/src/{perch-geometry,perch-around,perch-handoff,pose-dissolve}.ts`. Both the TypeScript test suite (`packages/tabpet/src/conformance.test.ts`) and the Swift test suite (`swift/Tests/TabPetCoreTests/GeometryConformanceTests.swift`, `AroundConformanceTests.swift`, `HandoffConformanceTests.swift`, `PoseDissolveConformanceTests.swift` - all four modules) replay the same cases, so the two implementations cannot silently drift apart.
+`conformance/*.json` (one file per module: geometry, around, handoff, pose-dissolve, animals) are golden test vectors generated from the TypeScript pure functions in `packages/tabpet/src/{perch-geometry,perch-around,perch-handoff,pose-dissolve}.ts`. Both the TypeScript test suite (`packages/tabpet/src/conformance.test.ts`) and the Swift test suite (`swift/Tests/TabPetCoreTests/GeometryConformanceTests.swift`, `AroundConformanceTests.swift`, `HandoffConformanceTests.swift`, `PoseDissolveConformanceTests.swift` - all four modules) replay the same cases, so the two implementations cannot silently drift apart. `animals.json` is different in kind: instead of function-call cases, each of its six cases is one built-in animal profile exactly as `packages/tabpet/src/animals/all.ts`'s registry resolves it, checked against `swift/Tests/TabPetAnimalsTests/TabPetAnimalsFixtureTests.swift` (`AnimalsFixture.swift` reads the file).
 
 These files are **generated and never hand-edited**. Regenerate with:
 
@@ -94,5 +94,11 @@ bun materializes `file:` directories as per-file symlinks. Metro follows them ou
 4. Measure the run sheet's empty rows above the drawing and add its `RUN_HEAD_PAD` entry in `packages/tabpet/src/sheet-metrics.ts`.
 5. Add the animal to `packages/tabpet/src/sheets.test.ts` - add the new ID to the ANIMALS list.
 6. Create the profile in `packages/tabpet/src/animals/<id>.ts` and register it in `packages/tabpet/src/animals/all.ts` to ship it with the library (or register it at runtime in your own app instead).
+7. Add the Swift side, in these places:
+   - `swift/Sources/TabPetAnimal<Name>/` - a new target folder holding byte copies of the three sheets and `LICENSE-ART.md` (`.copy` resources, never `.process`) and a `<Name>.swift` profile (every number equal to the TypeScript profile).
+   - `Package.swift` - a target and a library product for `TabPetAnimal<Name>`, depending on `TabPetCore` only.
+   - `swift/Sources/TabPetAnimals/TabPetAnimals.swift` - the umbrella's `profiles` list and `registerAll(in:)`.
+   - `swift/Tests/TabPetAnimalsTests/AnimalsUnderTest.swift` - the shared test table both `TabPetAnimalsTests` classes read from.
+   - Then run `tools/swift-asset-check.sh` and `bun run conformance` to regenerate `conformance/animals.json` and `swift/Tests/TabPetAnimalsTests/AssetHashes.swift` (generated, never hand-edited - a contributor never copies a digest by hand).
 
 See `docs/profiles.md` for the profile contract and `docs/art-pipeline.md` for geometry details (idle/sit: 5x5, 12 fps; run: 4xN, per-species fps).

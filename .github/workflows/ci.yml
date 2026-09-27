@@ -28,6 +28,7 @@ jobs:
       - run: bun run lint
       - run: bun run test
       - run: bun run conformance --check
+      - run: bun run swift-asset-check
       - run: cd apps/example && bunx expo export --platform ios --output-dir dist/ios
 
   swift:
@@ -38,6 +39,7 @@ jobs:
       - run: swift --version
       - run: swift build
       - run: swift test
+      - run: bash tools/swift-isolation-check.sh
 
   swift-uikit:
     runs-on: macos-latest

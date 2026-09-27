@@ -33,6 +33,7 @@ import {
 import type { PupPose } from './pose-dissolve';
 import { DEFAULT_COMPANION_ID, getCompanion, listCompanions } from './registry';
 import type { CompanionProfile } from './registry';
+import { DEFAULT_SIT_SHEET, IDLE_SHEET_GRID, RUN_SHEET_GRID } from './sheet-geometry';
 
 export type { PupPose } from './pose-dissolve';
 /** Same shape as PupPose, named separately so callers don't need to know
@@ -69,17 +70,13 @@ const EMPTY_SHEETS: Record<PupPose, SheetSpec> = {
   sit: EMPTY_SHEET,
 };
 
-// idle stays 12fps 5x5x25 for every animal;
-// run's fps is per-animal (profile.runFps); sit defaults to idle's grid but a
-// profile may carry its own (profile.sitSheet) for a 1:1 24fps settle
-const DEFAULT_SIT_SHEET = { cols: 5, rows: 5, frames: 25, fps: 12 };
 function buildSheets(profile: CompanionProfile | undefined): Record<PupPose, SheetSpec> {
   if (!profile) {
     return EMPTY_SHEETS;
   }
   return {
-    idle: { source: profile.sheets.idle, cols: 5, rows: 5, frames: 25, fps: 12 },
-    run: { source: profile.sheets.run, cols: 4, rows: 3, frames: 11, fps: profile.runFps },
+    idle: { source: profile.sheets.idle, ...IDLE_SHEET_GRID },
+    run: { source: profile.sheets.run, ...RUN_SHEET_GRID, fps: profile.runFps },
     sit: { source: profile.sheets.sit, ...(profile.sitSheet ?? DEFAULT_SIT_SHEET) },
   };
 }
