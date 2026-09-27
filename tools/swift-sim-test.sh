@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# swift-sim-test.sh - runs TabPetUIKitTests on an iOS simulator via xcodebuild.
+#
+# Usage: swift-sim-test.sh [device-id]
+#   device-id: a simulator udid (xcrun simctl list devices), not a name and
+#   not "booted". Without one, picks the first available iPhone simulator.
+#
+# Derived data sits outside the repository: a test host may be unable to open
+# a bundle under a protected folder such as ~/Documents (open fails, errno 1).
+# Override with SWIFT_SIM_DERIVED_DATA.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+DERIVED_DATA_PATH="${SWIFT_SIM_DERIVED_DATA:-${TMPDIR:-/tmp}/tabpet-swift-sim}"
+
+DEVICE_ID="${1:-}"
+if [ -z "$DEVICE_ID" ]; then
+  DEVICE_ID="$(xcrun simctl list devices available --json \
+    | python3 -c '
+import json, sys
+devices = json.load(sys.stdin)["devices"]
+for runtime, entries in devices.items():
+    if "iOS" not in runtime:
+        continue
+    for entry in entries:
+        if "iPhone" in entry["name"]:
+            print(entry["udid"])
+            sys.exit(0)
+')"
+fi
+if [ -z "$DEVICE_ID" ]; then
+  echo "swift-sim-test: no available iPhone simulator found" >&2
+  exit 1
+fi
+
+# SwiftPM test targets don't get their own scheme; find the package's
+# "*-Package" scheme rather than guessing its name. Capture stderr too: a
+# failed `-list` must not be parsed as if it had produced scheme output.
+LIST_OUTPUT="$(xcodebuild -list 2>&1)" || {
+  echo "swift-sim-test: xcodebuild -list failed:" >&2
+  echo "$LIST_OUTPUT" >&2
+  exit 1
+}
+SCHEME="$(echo "$LIST_OUTPUT" | awk '/-Package$/ {print $1; exit}')"
+if [ -z "$SCHEME" ]; then
+  echo "swift-sim-test: no *-Package scheme found via xcodebuild -list" >&2
+  exit 1
+fi
+
+xcodebuild test \
+  -scheme "$SCHEME" \
+  -only-testing:TabPetUIKitTests \
+  -destination "id=$DEVICE_ID" \
+  -derivedDataPath "$DERIVED_DATA_PATH"
