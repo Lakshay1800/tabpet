@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.3
 
 - Fixed: the squirrel no longer shows a light patch under its feet on a dark tab bar. Its three sheets lose the painted ground shadow, the white matte edge and the background sealed between the legs. The seat is unchanged.
 - Tools: `tools/ground-shadow.py` separates a painted ground shadow from the fur by position when color cannot, `tools/defringe.py` cleans the white matte edge, sealed pockets and specks, and `tools/sheet-compare.py` reports what a cleaning changed against the original sheet, cell by cell.
