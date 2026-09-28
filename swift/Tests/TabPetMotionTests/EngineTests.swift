@@ -151,6 +151,30 @@ final class EngineTests: XCTestCase {
         XCTAssertFalse(track.isActive)
     }
 
+    /// Additive API, no change to existing behavior: two track producers
+    /// sharing one engine, each labeling its own tracks with its own
+    /// prefix, can each ask about only its own group.
+    func testIsAnyTrackActiveFiltersByLabelPrefix() {
+        let clock = ManualClock()
+        let engine = MotionEngine(clock: clock)
+        let perchTrack = engine.makeTrack(label: "perch.x")
+        let spriteTrack = engine.makeTrack(label: "sprite.idle.frame")
+
+        XCTAssertFalse(engine.isAnyTrackActive(labelPrefix: "perch."))
+        XCTAssertFalse(engine.isAnyTrackActive(labelPrefix: "sprite."))
+
+        let timing = TimingAnimation(toValue: 100, config: TimingConfig(duration: 50, easing: { Easing.linear($0) }))
+        engine.start(perchTrack, timing)
+        XCTAssertTrue(engine.isAnyTrackActive(labelPrefix: "perch."), "a perch track is active")
+        XCTAssertFalse(engine.isAnyTrackActive(labelPrefix: "sprite."), "the sprite group is unaffected by the perch group")
+
+        engine.cancel(perchTrack)
+        let spriteTiming = TimingAnimation(toValue: 1, config: TimingConfig(duration: 50, easing: { Easing.linear($0) }))
+        engine.start(spriteTrack, spriteTiming)
+        XCTAssertFalse(engine.isAnyTrackActive(labelPrefix: "perch."), "the perch group emptied")
+        XCTAssertTrue(engine.isAnyTrackActive(labelPrefix: "sprite."), "the sprite group is active")
+    }
+
     func testCompletionThatStartsANewTrackInsideATickIsSafe() {
         let clock = ManualClock()
         let engine = MotionEngine(clock: clock)
@@ -334,6 +358,76 @@ final class EngineTests: XCTestCase {
 
         XCTAssertEqual(result, false, "a track older than 10 seconds is force-completed with false")
         XCTAssertFalse(track.isActive)
+    }
+
+    /// A per-call `maxAgeMs` override outlives the engine's own default - a
+    /// caller with a leg that legitimately runs longer than 10s is not
+    /// force-completed early, but is still force-completed past its own ceiling.
+    func testPerCallMaxAgeMsOverridesTheEngineDefault() {
+        let clock = ManualClock()
+        let engine = MotionEngine(clock: clock)
+        let track = engine.makeTrack(label: "x")
+
+        var result: Bool?
+        let neverFinishes = ScriptedAnimation(current: 0) { _ in (0, false) }
+        engine.start(track, neverFinishes, maxAgeMs: 30_000) { finished in result = finished }
+
+        clock.advance(ms: 15_000, frameMs: 500)
+        XCTAssertNil(result, "past the engine's own 10s default, but under this call's own 30s ceiling")
+        XCTAssertTrue(track.isActive)
+
+        clock.advance(ms: 16_000, frameMs: 500)
+        XCTAssertEqual(result, false, "force-completed once the override's own ceiling (31s total) passes")
+        XCTAssertFalse(track.isActive)
+    }
+
+    /// Every existing caller (no `maxAgeMs` argument) keeps the engine's own
+    /// 10s default unchanged.
+    func testOmittingMaxAgeMsKeepsTheTenSecondDefault() {
+        let clock = ManualClock()
+        let engine = MotionEngine(clock: clock)
+        let track = engine.makeTrack(label: "x")
+
+        var result: Bool?
+        let neverFinishes = ScriptedAnimation(current: 0) { _ in (0, false) }
+        engine.start(track, neverFinishes) { finished in result = finished }
+
+        for _ in 0..<25 {
+            clock.advance(ms: 500, frameMs: 500)
+            if result != nil {
+                break
+            }
+        }
+
+        XCTAssertEqual(result, false, "no override given - the 10s default still applies")
+    }
+
+    /// A completion firing (as `start` cancels the outgoing animation) that
+    /// reentrantly restarts this same track with its own, shorter ceiling
+    /// must not leave that ceiling in place for the outer call's own animation.
+    func testAReentrantRestartInsideACompletionDoesNotStealTheOuterCallsMaxAgeMs() {
+        let clock = ManualClock()
+        let engine = MotionEngine(clock: clock)
+        let track = engine.makeTrack(label: "x")
+
+        let neverFinishes = ScriptedAnimation(current: 0) { _ in (0, false) }
+        engine.start(track, neverFinishes) { _ in
+            // Fires synchronously while the outer start below is still
+            // cancelling this track's held animation.
+            let inner = ScriptedAnimation(current: 0) { _ in (0, false) }
+            engine.start(track, inner, maxAgeMs: 1_000)
+        }
+
+        var outerResult: Bool?
+        let outer = ScriptedAnimation(current: 0) { _ in (0, false) }
+        engine.start(track, outer, maxAgeMs: 30_000) { finished in outerResult = finished }
+
+        clock.advance(ms: 5_000, frameMs: 500)
+        XCTAssertNil(outerResult, "the outer call's own 30s ceiling must survive the reentrant restart's shorter one")
+        XCTAssertTrue(track.isActive)
+
+        clock.advance(ms: 26_000, frameMs: 500)
+        XCTAssertEqual(outerResult, false, "force-completed once the outer call's own ceiling passes")
     }
 
     /// The library never traps a host app - an empty Sequence (a call-site

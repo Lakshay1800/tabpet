@@ -36,12 +36,10 @@ enum TrackStepOutcome {
 ///   restored to its last finite value (MotionTrack.currentValue does this
 ///   once the corrupted animation is discarded), completes with false, and
 ///   is reported through `onError`.
-/// - A track older than 10 seconds is force-completed with false, unless it
-///   was started with `isLoop: true` (the sprite busy loop is exempt).
+/// - A track older than its `maxAgeMs` (MotionTrack.defaultMaxAgeMs unless
+///   overridden) is force-completed with false, unless started as a loop.
 @MainActor
 package final class MotionEngine {
-    private static let maxTrackAgeMs: Double = 10_000
-
     /// Reported once per guard trip: the error and the track's own label.
     package var onError: ((MotionError, String) -> Void)?
 
@@ -94,6 +92,7 @@ package final class MotionEngine {
         _ track: MotionTrack,
         _ animation: MotionAnimation,
         isLoop: Bool = false,
+        maxAgeMs: Double? = nil,
         completion: ((Bool) -> Void)? = nil
     ) {
         guard !track.isRemoved else {
@@ -101,7 +100,13 @@ package final class MotionEngine {
             onError?(.trackRemoved, track.label)
             return
         }
-        track.start(animation, now: tickNow ?? clock.now, isLoop: isLoop, completion: completion)
+        track.start(
+            animation,
+            now: tickNow ?? clock.now,
+            isLoop: isLoop,
+            maxAgeMs: maxAgeMs ?? MotionTrack.defaultMaxAgeMs,
+            completion: completion
+        )
         clock.setWantsFrames(anyTrackActive)
     }
 
@@ -135,6 +140,13 @@ package final class MotionEngine {
         tracks.contains { $0.isActive }
     }
 
+    /// Additive, no change to existing behavior: an owner sharing this
+    /// engine across labeled track groups (a perch controller, a sprite
+    /// player) can ask whether one group alone is still animating.
+    package func isAnyTrackActive(labelPrefix: String) -> Bool {
+        tracks.contains { $0.isActive && $0.label.hasPrefix(labelPrefix) }
+    }
+
     /// Advances every active track by one tick. The active set is
     /// snapshotted up front, so a completion that starts a new track mid-tick
     /// (on this track or another) never mutates the collection this loop is
@@ -160,7 +172,7 @@ package final class MotionEngine {
         let snapshot = tracks.filter(\.isActive)
         var queued: [() -> Void] = []
         for track in snapshot {
-            switch track.step(now: now, maxAgeMs: Self.maxTrackAgeMs) {
+            switch track.step(now: now, maxAgeMs: track.maxAgeMs) {
             case .active:
                 break
             case .finished(let animation, let completion):

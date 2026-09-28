@@ -15,10 +15,9 @@
 /// Deliberate differences from the original, one line each:
 /// - `set` and a fresh track both refuse a non-finite value outright,
 ///   reported through `onError`, rather than storing it.
-/// - A track older than 10 seconds is force-completed with false (a track
-///   started with `isLoop: true` is exempt) - its already-fired completion
-///   is cleared right there, unlike a natural finish, so a later cancel,
-///   set or start never fires it a second time.
+/// - A track older than `maxAgeMs` (10s default, per-`start` override) is
+///   force-completed false (isLoop exempt), its completion cleared right
+///   there so a later cancel, set or start never fires it again.
 /// - A track can be removed outright (`MotionEngine.remove`); the original
 ///   has no such lifecycle at all - a SharedValue is just garbage collected.
 /// - Completions queued while MotionEngine.tick steps every track all run
@@ -47,8 +46,16 @@
 package final class MotionTrack {
     private static let maxNestDepth = 8
 
+    /// TS has no such limit; MotionEngine force-completes a non-loop track
+    /// older than this unless a `start` call overrides it per-call.
+    package static let defaultMaxAgeMs: Double = 10_000
+
     package let label: String
     package private(set) var isActive = false
+    /// The age-out ceiling this track's most recent `start` was given -
+    /// MotionEngine.tick reads this per track instead of one shared limit,
+    /// so a long-running leg (a slow animal's run) can outlive the default.
+    private(set) var maxAgeMs: Double = MotionTrack.defaultMaxAgeMs
 
     /// Reported for a guard that trips inside `start` itself (nesting past
     /// `maxNestDepth`) - the tick-time guards (a non-finite frame, the 10s
@@ -123,6 +130,7 @@ package final class MotionTrack {
         _ newAnimation: MotionAnimation,
         now: Double,
         isLoop: Bool = false,
+        maxAgeMs: Double = MotionTrack.defaultMaxAgeMs,
         completion newCompletion: ((Bool) -> Void)? = nil
     ) {
         nestDepth += 1
@@ -132,7 +140,6 @@ package final class MotionTrack {
             onError?(.nestingOverflow)
             return
         }
-
         // Fires first - may reentrantly call `start`/`cancel`/`set` on this
         // same track.
         let outgoingAnimation = cancelHeldAnimation()
@@ -152,6 +159,10 @@ package final class MotionTrack {
             return
         }
 
+        // Assigned here, after the outgoing completion above may have
+        // reentrantly started its own animation on this track - a reentrant
+        // call's own maxAgeMs must not leak into this outer call's ceiling.
+        self.maxAgeMs = maxAgeMs
         animation = newAnimation
         completion = newCompletion
         startedAt = now

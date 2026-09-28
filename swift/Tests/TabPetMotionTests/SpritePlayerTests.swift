@@ -595,4 +595,161 @@ final class SpritePlayerTests: XCTestCase {
         XCTAssertGreaterThan(state.run.opacity, 0, "outgoing: still fading out, not yet hidden")
         XCTAssertEqual(state.run.z, 2)
     }
+
+    // MARK: - Shared-engine mode
+
+    /// Two players sharing one engine and clock both advance on one tick -
+    /// neither installs its own frame handler, so nothing but the owner's
+    /// explicit `engine.tick` + `renderTick()` pair drives either of them.
+    func testTwoPlayersOnOneSharedEngineBothAdvanceOnOneTick() {
+        let clock = ManualClock()
+        let engine = MotionEngine(clock: clock)
+        let rendererA = RecordingRenderer()
+        let rendererB = RecordingRenderer()
+        let playerA = SpritePlayer(profile: makeProfile(), engine: engine, clock: clock)
+        let playerB = SpritePlayer(profile: makeProfile(), engine: engine, clock: clock)
+        playerA.renderer = rendererA
+        playerB.renderer = rendererB
+        playerA.commit(SpriteCommit(pose: .run))
+        playerB.commit(SpriteCommit(pose: .run))
+        let framesBeforeTick = (a: rendererA.states.count, b: rendererB.states.count)
+
+        engine.tick(now: 100)
+        playerA.renderTick()
+        playerB.renderTick()
+
+        XCTAssertGreaterThan(playerA.currentState.run.frame, 0, "player A advanced")
+        XCTAssertGreaterThan(playerB.currentState.run.frame, 0, "player B advanced on the same tick call")
+        XCTAssertEqual(playerA.currentState.run.frame, playerB.currentState.run.frame, "identical profiles on one clock stay in lockstep")
+        XCTAssertGreaterThan(rendererA.states.count, framesBeforeTick.a)
+        XCTAssertGreaterThan(rendererB.states.count, framesBeforeTick.b)
+    }
+
+    /// Releasing one shared-engine player (letting it deallocate) must not
+    /// touch tracks the other player still owns on the same engine - the
+    /// engine's own `tick` stays safe, and the survivor is unaffected.
+    func testReleasingOneSharedPlayerDoesNotReleaseAnythingTheOtherStillOwns() {
+        let clock = ManualClock()
+        let engine = MotionEngine(clock: clock)
+        var playerA: SpritePlayer? = SpritePlayer(profile: makeProfile(), engine: engine, clock: clock)
+        let playerB = SpritePlayer(profile: makeProfile(), engine: engine, clock: clock)
+        weak var weakA: SpritePlayer?
+        weakA = playerA
+        playerB.commit(SpriteCommit(pose: .run))
+
+        playerA = nil
+        XCTAssertNil(weakA, "playerA deallocates on its own - shared mode holds no reference from the engine back to either player beyond what its own tracks need")
+
+        engine.tick(now: 50)
+        playerB.renderTick()
+        XCTAssertGreaterThan(playerB.currentState.run.frame, 0, "playerB's own tracks are untouched by playerA's deallocation")
+    }
+
+    /// The shared-mode initializer installs no frame handler at all - proven
+    /// behaviourally, since a closure has no identity to compare: a track
+    /// belonging to the engine alone still advances after construction.
+    func testSharedModeNeverTouchesClockFrameHandler() {
+        let clock = ManualClock()
+        let engine = MotionEngine(clock: clock)
+        let sentinelTrack = engine.makeTrack(label: "sentinel", initialValue: 0)
+        engine.start(sentinelTrack, TimingAnimation(toValue: 100, config: TimingConfig(duration: 100, easing: { Easing.linear($0) })))
+
+        _ = SpritePlayer(profile: makeProfile(), engine: engine, clock: clock)
+
+        clock.advance(ms: 50, frameMs: 1)
+        XCTAssertGreaterThan(sentinelTrack.currentValue, 0, "the engine's own frameHandler still runs ticks after a shared-mode player is constructed")
+    }
+
+    // MARK: - Teardown (shared-engine mode)
+
+    /// A shared-engine profile swap must not leave the outgoing player's
+    /// loop tracks (the busy idle loop here) animating the shared clock -
+    /// both isLoop tracks are exempt from the engine's own 10s age guard.
+    func testTeardownStopsABusyIdleLoopLeftOnTheSharedEngine() {
+        let clock = ManualClock()
+        let engine = MotionEngine(clock: clock)
+        let playerA = SpritePlayer(profile: makeProfile(), engine: engine, clock: clock)
+        playerA.commit(SpriteCommit(pose: .idle, busy: true))
+
+        playerA.teardown()
+
+        let playerB = SpritePlayer(profile: makeProfile(), engine: engine, clock: clock)
+        playerB.commit(SpriteCommit(pose: .sit, busy: false))
+
+        clock.advance(ms: 30_000, frameMs: 50)
+
+        XCTAssertFalse(engine.isAnyTrackActive(labelPrefix: "sprite."), "player A's busy idle loop must not still be active")
+        XCTAssertFalse(clock.wantsFrames, "nothing left on the shared engine wants a frame")
+    }
+
+    /// Same shape, with a held run instead of a busy idle loop - `.run` is
+    /// also started with `isLoop: true` (a host can hold it indefinitely),
+    /// so it needs the same teardown.
+    func testTeardownStopsAHeldRunLoopLeftOnTheSharedEngine() {
+        let clock = ManualClock()
+        let engine = MotionEngine(clock: clock)
+        let playerA = SpritePlayer(profile: makeProfile(), engine: engine, clock: clock)
+        playerA.commit(SpriteCommit(pose: .run))
+
+        playerA.teardown()
+
+        let playerB = SpritePlayer(profile: makeProfile(), engine: engine, clock: clock)
+        playerB.commit(SpriteCommit(pose: .sit, busy: false))
+
+        clock.advance(ms: 30_000, frameMs: 50)
+
+        XCTAssertFalse(engine.isAnyTrackActive(labelPrefix: "sprite."), "player A's held run loop must not still be active")
+        XCTAssertFalse(clock.wantsFrames, "nothing left on the shared engine wants a frame")
+    }
+
+    /// Calling `teardown()` twice (or on a player nothing was ever committed
+    /// to) must not throw, double-remove, or otherwise misbehave.
+    func testTeardownIsIdempotent() {
+        let clock = ManualClock()
+        let engine = MotionEngine(clock: clock)
+        let player = SpritePlayer(profile: makeProfile(), engine: engine, clock: clock)
+        player.commit(SpriteCommit(pose: .run))
+
+        player.teardown()
+        player.teardown()
+
+        XCTAssertFalse(engine.isAnyTrackActive(labelPrefix: "sprite."))
+    }
+
+    // MARK: - Mutation: inert after teardown
+
+    /// A commit into a torn-down player must not update `lastAppliedCommit`
+    /// or start a track, even for a pose genuinely different from the last
+    /// one applied before teardown.
+    func testMutation_CommitAfterTeardownIsANoOp() {
+        let clock = ManualClock()
+        let engine = MotionEngine(clock: clock)
+        let player = SpritePlayer(profile: makeProfile(), engine: engine, clock: clock)
+        player.commit(SpriteCommit(pose: .idle))
+        let commitBefore = player.lastAppliedCommit
+
+        player.teardown()
+        player.commit(SpriteCommit(pose: .run))
+
+        XCTAssertEqual(player.lastAppliedCommit, commitBefore, "a commit after teardown must not update the last applied commit")
+        XCTAssertFalse(engine.isAnyTrackActive(labelPrefix: "sprite."), "a commit after teardown must start no new track")
+    }
+
+    /// `isAnyTrackActive` alone can't tell inert apart from broken here: the
+    /// press track is already removed from the engine either way, so a
+    /// non-inert pressBegin only shows up as a `.trackRemoved` report.
+    func testMutation_PressBeginAndPressEndAfterTeardownReportNothing() {
+        let clock = ManualClock()
+        let engine = MotionEngine(clock: clock)
+        var errors: [MotionError] = []
+        engine.onError = { error, _ in errors.append(error) }
+        let player = SpritePlayer(profile: makeProfile(), engine: engine, clock: clock)
+        player.commit(SpriteCommit(pose: .idle))
+        player.teardown()
+
+        player.pressBegin()
+        player.pressEnd()
+
+        XCTAssertTrue(errors.isEmpty, "pressBegin/pressEnd after teardown must report nothing, not a trackRemoved error")
+    }
 }
