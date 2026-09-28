@@ -49,3 +49,4 @@ jobs:
       - uses: actions/checkout@v4
       - run: xcodebuild -version
       - run: bash tools/swift-sim-test.sh
+      - run: bash tools/swift-demo-build.sh

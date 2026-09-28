@@ -46,14 +46,15 @@ let package = Package(
         // Never "TabPet" alone: the Expo pod's Swift module already claims that name.
         .target(
             name: "TabPetUIKit",
-            dependencies: ["TabPetCore"],
+            dependencies: ["TabPetCore", "TabPetMotion"],
             path: "swift/Sources/TabPetUIKit",
             swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
         ),
         .testTarget(
             name: "TabPetUIKitTests",
             dependencies: ["TabPetUIKit"],
-            path: "swift/Tests/TabPetUIKitTests"
+            path: "swift/Tests/TabPetUIKitTests",
+            swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
         ),
         // Each animal target depends on TabPetCore only, so importing one
         // never bundles the others (tools/swift-isolation-check.sh). Assets

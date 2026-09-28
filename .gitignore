@@ -18,3 +18,5 @@ _scratch/
 tools/.leak-pattern
 .build/
 .swiftpm/
+apps/swift-demo/**/xcuserdata/
+apps/swift-demo/TabPetDemo.xcodeproj/project.xcworkspace/xcuserdata/

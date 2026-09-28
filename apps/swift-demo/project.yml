@@ -1,0 +1,60 @@
+name: TabPetDemo
+options:
+  bundleIdPrefix: org.tabpet
+  deploymentTarget:
+    iOS: '15.1'
+  createIntermediateGroups: true
+
+packages:
+  TabPet:
+    path: ../..
+
+targets:
+  TabPetDemo:
+    type: application
+    platform: iOS
+    sources:
+      - path: TabPetDemo/Sources
+    info:
+      path: TabPetDemo/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.tabpet.demo
+        PRODUCT_NAME: TabPetDemo
+        SWIFT_VERSION: '5.0'
+        MARKETING_VERSION: '1.0'
+        CURRENT_PROJECT_VERSION: '1'
+        # a plain host, not distributed: no team, no identity
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: ''
+        DEVELOPMENT_TEAM: ''
+        ENABLE_PREVIEWS: NO
+        TARGETED_DEVICE_FAMILY: '1'
+    dependencies:
+      - package: TabPet
+        product: TabPetAnimals
+      - package: TabPet
+        product: TabPetCore
+      - package: TabPet
+        product: TabPetUIKit
+
+schemes:
+  TabPetDemo:
+    build:
+      targets:
+        TabPetDemo: all
+    run:
+      config: Debug
+    test:
+      config: Debug
