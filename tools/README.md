@@ -77,6 +77,56 @@ tools/deshadow.sh panda-sit-sprite.png panda-sit-clean.png            # 240px ce
 tools/deshadow.sh otter-run-sprite.png otter-run-clean.png 240 190 11 # tighter band, smaller opening for a leaner animal
 ```
 
+## ground-shadow.py
+
+Separates a painted ground shadow from the animal by position instead of color, for a shadow that shares its color family with the fur (see the art pipeline's "Removing a painted ground shadow"). Works on raw RGBA, not PNG directly.
+
+### Prerequisites
+
+- `python3`, `numpy`
+- ImageMagick 7 (`magick` on PATH), to convert to and from raw RGBA
+
+### Example
+
+```bash
+magick otter-sit-sprite.png -depth 8 rgba:otter-sit.rgba
+tools/ground-shadow.py otter-sit.rgba otter-sit-shadowless.rgba 1200 1200 240 14
+magick -size 1200x1200 -depth 8 rgba:otter-sit-shadowless.rgba otter-sit-shadowless.png
+```
+
+## defringe.py
+
+Cleans what a corner-flood-fill key leaves on a sprite sheet: sealed white background pockets, loose specks, and the matte edge where the drawing was mixed with white at the key's own edge. Run after `ground-shadow.py` (or on a sheet with no shadow to remove). Works on raw RGBA, like `ground-shadow.py`.
+
+### Prerequisites
+
+- `python3`, `numpy`
+- ImageMagick 7 (`magick` on PATH)
+
+### Example
+
+```bash
+tools/defringe.py otter-sit-shadowless.rgba otter-sit-clean.rgba 1200 1200 240
+# with a ground band, for a shadow core the key sealed into a non-white pocket
+tools/defringe.py otter-sit-shadowless.rgba otter-sit-clean.rgba 1200 1200 240 215
+magick -size 1200x1200 -depth 8 rgba:otter-sit-clean.rgba otter-sit-clean.png
+```
+
+## sheet-compare.py
+
+Compares a cleaned sheet to its original, cell by cell: pixels removed, an enclosed hole that is not near-white background, the largest connected chunk of animal removed, light pixels left near the ground on a dark bar, and whether the paw line moved. Prints one line per cell with something to report, then totals. Run this after a cut to see exactly what changed.
+
+### Prerequisites
+
+- `python3`, `numpy`
+- ImageMagick 7 (`magick` on PATH)
+
+### Example
+
+```bash
+tools/sheet-compare.py otter-sit-sprite.png otter-sit-clean.png 240
+```
+
 ## frame-stack.sh
 
 Drives a Maestro flow against a booted simulator while recording, then cuts the recording into frames and a contact sheet. This is how motion changes get verified: not screenshots, a frame stack.
