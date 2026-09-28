@@ -1,0 +1,378 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0AF75A57FCD3771065ED52AF /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DFCB66A33BEC6E3BD241EAE /* AppDelegate.swift */; };
+		2D8F88B7E665882131D3139B /* ListViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3F72B03E261115129FD7662 /* ListViewController.swift */; };
+		3946BBB248F8A454F9D34386 /* TabPetCore in Frameworks */ = {isa = PBXBuildFile; productRef = CB5318A1335B5969BDF37DB7 /* TabPetCore */; };
+		66BF316D6BB45C2353404E3D /* TabPetAnimals in Frameworks */ = {isa = PBXBuildFile; productRef = 9AF2E559B5F8C6C73A019B25 /* TabPetAnimals */; };
+		6F7A2BA90F5F11B54FA0546F /* ControlsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A9E8B21FA6FF47AB9477E89 /* ControlsViewController.swift */; };
+		E8D9F02BC4D8D60D724B33D3 /* RootTabBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BAD6DA34D2D9B9B43925EF8 /* RootTabBarController.swift */; };
+		E93817379035276CE70795C2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAF3E75D40F69AFBD7ECEAA2 /* SceneDelegate.swift */; };
+		FEFB417BCFA4A3569BE81F13 /* TabPetUIKit in Frameworks */ = {isa = PBXBuildFile; productRef = D3D25D1800D963132F389EC8 /* TabPetUIKit */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		1DFCB66A33BEC6E3BD241EAE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		3BAD6DA34D2D9B9B43925EF8 /* RootTabBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabBarController.swift; sourceTree = "<group>"; };
+		8A9E8B21FA6FF47AB9477E89 /* ControlsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlsViewController.swift; sourceTree = "<group>"; };
+		9C26A626895A7AB851BCA601 /* tabpet */ = {isa = PBXFileReference; lastKnownFileType = folder; name = tabpet; path = ../..; sourceTree = SOURCE_ROOT; };
+		A057B20A64CFE4D607867576 /* TabPetDemo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TabPetDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C3F72B03E261115129FD7662 /* ListViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListViewController.swift; sourceTree = "<group>"; };
+		FAF3E75D40F69AFBD7ECEAA2 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		17BBDEA32440464E8D44FC2B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				66BF316D6BB45C2353404E3D /* TabPetAnimals in Frameworks */,
+				3946BBB248F8A454F9D34386 /* TabPetCore in Frameworks */,
+				FEFB417BCFA4A3569BE81F13 /* TabPetUIKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		3F7D3EBC9D3E5AEF573FDAF1 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				1DFCB66A33BEC6E3BD241EAE /* AppDelegate.swift */,
+				8A9E8B21FA6FF47AB9477E89 /* ControlsViewController.swift */,
+				C3F72B03E261115129FD7662 /* ListViewController.swift */,
+				3BAD6DA34D2D9B9B43925EF8 /* RootTabBarController.swift */,
+				FAF3E75D40F69AFBD7ECEAA2 /* SceneDelegate.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		8C822C897CD04DA20CF67D32 = {
+			isa = PBXGroup;
+			children = (
+				FBC57EB990FE17928E06E018 /* Packages */,
+				A18A1CF0B7ACA15FD144D2D8 /* TabPetDemo */,
+				8E63B4736F48E6055E7A4F21 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		8E63B4736F48E6055E7A4F21 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A057B20A64CFE4D607867576 /* TabPetDemo.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A18A1CF0B7ACA15FD144D2D8 /* TabPetDemo */ = {
+			isa = PBXGroup;
+			children = (
+				3F7D3EBC9D3E5AEF573FDAF1 /* Sources */,
+			);
+			path = TabPetDemo;
+			sourceTree = "<group>";
+		};
+		FBC57EB990FE17928E06E018 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				9C26A626895A7AB851BCA601 /* tabpet */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		CBDB7C7D05972D5F0643FC3F /* TabPetDemo */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 81BAA68DA4A4196FF5B6D0E3 /* Build configuration list for PBXNativeTarget "TabPetDemo" */;
+			buildPhases = (
+				481D53F790C0FDC028E03328 /* Sources */,
+				17BBDEA32440464E8D44FC2B /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TabPetDemo;
+			packageProductDependencies = (
+				9AF2E559B5F8C6C73A019B25 /* TabPetAnimals */,
+				CB5318A1335B5969BDF37DB7 /* TabPetCore */,
+				D3D25D1800D963132F389EC8 /* TabPetUIKit */,
+			);
+			productName = TabPetDemo;
+			productReference = A057B20A64CFE4D607867576 /* TabPetDemo.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		25F1E1593176022C735B628C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					CBDB7C7D05972D5F0643FC3F = {
+						DevelopmentTeam = "";
+					};
+				};
+			};
+			buildConfigurationList = 8EFE41304D8135CB440700CD /* Build configuration list for PBXProject "TabPetDemo" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 8C822C897CD04DA20CF67D32;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				EF4D78CB3A6E9AEDA3847F53 /* XCLocalSwiftPackageReference "../.." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 8E63B4736F48E6055E7A4F21 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				CBDB7C7D05972D5F0643FC3F /* TabPetDemo */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		481D53F790C0FDC028E03328 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0AF75A57FCD3771065ED52AF /* AppDelegate.swift in Sources */,
+				6F7A2BA90F5F11B54FA0546F /* ControlsViewController.swift in Sources */,
+				2D8F88B7E665882131D3139B /* ListViewController.swift in Sources */,
+				E8D9F02BC4D8D60D724B33D3 /* RootTabBarController.swift in Sources */,
+				E93817379035276CE70795C2 /* SceneDelegate.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		242CC749149DBFE866D50DC5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = NO;
+				INFOPLIST_FILE = TabPetDemo/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.tabpet.demo;
+				PRODUCT_NAME = TabPetDemo;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		44867840CEA7CDCE9AB5762B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = NO;
+				INFOPLIST_FILE = TabPetDemo/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.tabpet.demo;
+				PRODUCT_NAME = TabPetDemo;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		608FF416C8AAE3147FC4EE52 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		AFDE39AEA32D11EF3D268FC3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		81BAA68DA4A4196FF5B6D0E3 /* Build configuration list for PBXNativeTarget "TabPetDemo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				242CC749149DBFE866D50DC5 /* Debug */,
+				44867840CEA7CDCE9AB5762B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8EFE41304D8135CB440700CD /* Build configuration list for PBXProject "TabPetDemo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				608FF416C8AAE3147FC4EE52 /* Debug */,
+				AFDE39AEA32D11EF3D268FC3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		EF4D78CB3A6E9AEDA3847F53 /* XCLocalSwiftPackageReference "../.." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../..;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		9AF2E559B5F8C6C73A019B25 /* TabPetAnimals */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = TabPetAnimals;
+		};
+		CB5318A1335B5969BDF37DB7 /* TabPetCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = TabPetCore;
+		};
+		D3D25D1800D963132F389EC8 /* TabPetUIKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = TabPetUIKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 25F1E1593176022C735B628C /* Project object */;
+}

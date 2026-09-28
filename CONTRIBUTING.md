@@ -26,6 +26,10 @@ Adding an animal means editing `sheets.test.ts` - add the new ID to its ANIMALS 
 
 The finger chase and the bar's own scrub are simulator-blind. Sign off on a device before shipping motion changes. See `tools/README.md` for `frame-stack.sh` (records a simulator flow and cuts it into a frame stack and contact sheet) and `pill-geometry.sh` (measures the pill's edges per frame).
 
+## Demo App
+
+`apps/swift-demo/TabPetDemo.xcodeproj` is a plain Xcode project (generated with [XcodeGen](https://github.com/yonaskolb/XcodeGen) from `apps/swift-demo/project.yml`, which is the file to hand-edit; regenerate the project with `xcodegen generate` from that directory after any change) that depends on the package at the repository root by a relative path. XcodeGen writes the name of the repository's directory into the project, so regenerate from a checkout whose directory is named `tabpet`. It has one shared scheme, `TabPetDemo`, and no signing team - it builds unsigned, for the simulator only. Opening or building the committed project needs Xcode 16 or later. Build it with `tools/swift-demo-build.sh [device-id]`, which runs in the same CI job as the simulator tests and, by default, reuses that job's own derived data rather than building the package cold a second time. `xcuserdata/` and build output are gitignored; the project file and its shared scheme are committed.
+
 ## Motion Invariants
 
 Every gesture callback body and spring completion must obey these constraints:
