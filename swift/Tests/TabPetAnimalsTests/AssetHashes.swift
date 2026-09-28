@@ -38,8 +38,8 @@ let pinnedSheetSHA256: [String: PinnedSheetHashes] = [
         sit: "c075582cb56202e987f5925caa7d33e9b52bc060b8d9eda9e23fba4b08e92c05"
     ),
     "squirrel": PinnedSheetHashes(
-        idle: "2c9bf816e9e643f490223b73e24337b6629508e744c885f1b40cf852a6ac39c1",
-        run: "a2ca217ded2bef7208dd2ba4483ace83017dde52a83442d62e76266d3c789fd2",
-        sit: "ece0effa74078bdc89070aba8c03b2c81ace56fb6d28130b87d8e76a2ea3a1c4"
+        idle: "d3fcc756a1d2eed6f9c944c339b6f781dd5238f8039638365577716d2fe90b9a",
+        run: "7ae92da7b83f33a7abf58d78e3eb3dbdbb1df79402f06da92500e72bc13103ee",
+        sit: "303f4fb0cbdf5e258d0307206e87bea30e57dc0822a8ed93ea63c64f29db65fc"
     ),
 ]
