@@ -115,16 +115,16 @@ Want only one animal? Import from `react-native-tabpet/bare` and register the on
 | bird     | flies 14pt above the bar and lands                                 |
 | squirrel | the fastest hop on the bar, also takes the long way round          |
 
-Each one is three sprite sheets and a profile of springs, speeds, and seat measurements. The [profile reference](docs/profiles.md) lists every number, and the [art pipeline](docs/art-pipeline.md) has the prompts that ran in Sora, Seedance and Grok Imagine and the cut recipes that made them, so you can make your own in an afternoon.
+Each one is three sprite sheets and a profile of springs, speeds, and seat measurements. The [profile reference](docs/profiles.md) lists every number, and the [art pipeline](docs/art-pipeline.md) has the prompts that ran in Sora, Seedance and Grok Imagine, the cut recipes that made them, and the cleanup a sheet needs before it sits on a dark tab bar, so you can make your own in an afternoon.
 
 ## Docs
 
 - [Integration guide](docs/integration.md), the host contract: mounting, pushed screens, bar drag, theme, custom bars
 - [API reference](docs/api.md)
 - [Profile reference](docs/profiles.md), every field and the bar it assumes
-- [Art pipeline](docs/art-pipeline.md), generation prompts, cutting sheets, measuring a profile
+- [Art pipeline](docs/art-pipeline.md), generation prompts, cutting sheets, cleaning them for dark tab bars, measuring a profile
 - [How it works](docs/how-it-works.md), the seat, the run, the around route
-- [Tools](tools/README.md), the sheet slicer and the frame-stack verifier
+- [Tools](tools/README.md), the sheet slicer, the shadow and edge cleaners, and the frame-stack verifier
 
 ## Example app
 
@@ -141,7 +141,7 @@ The simulator shows the seat, the run, and the around route. The finger chase an
 
 ## Contributing
 
-`bun install`, then `bun run check` runs the leak gate, typecheck, format check, lint, and tests. Motion invariants and the verification recipe are in [CONTRIBUTING.md](CONTRIBUTING.md). Motion changes get a frame stack before merge, not a screenshot.
+`bun install`, then `bun run check` runs the leak gate, typecheck, format check, lint, tests, and the fixture checks. Motion invariants and the verification recipe are in [CONTRIBUTING.md](CONTRIBUTING.md). Motion changes get a frame stack before merge, not a screenshot.
 
 ## License
 
