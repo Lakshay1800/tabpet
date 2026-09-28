@@ -91,6 +91,79 @@ final class CompanionSpriteViewTests: XCTestCase {
         XCTAssertEqual(sitLayer.contentsRect.origin.y, expectedRect.origin.y, accuracy: 0.0001)
     }
 
+    // MARK: - apply(pose:busy:facing:) batches into one commit
+
+    func testApplyingPoseAndFacingTogetherProducesExactlyOneCommit() {
+        let registry = CompanionRegistry()
+        let profile = SpriteTestFixtures.makeFixtureProfile(cellSize: 20)
+        registry.register(profile)
+        let clock = ManualClock()
+        let view = CompanionSpriteView(companionID: profile.id, registry: registry, clock: clock)
+        let window = makeWindow()
+        window.addSubview(view)
+        window.makeKeyAndVisible()
+        waitUntilReady(view)
+
+        let commitsBefore = view.debugCommitCount
+        view.apply(pose: .run, busy: true, facing: .left)
+
+        XCTAssertEqual(view.debugCommitCount - commitsBefore, 1, "a pose, busy and facing change together must commit exactly once")
+        XCTAssertEqual(view.pose, .run)
+        XCTAssertTrue(view.isBusy)
+        XCTAssertEqual(view.facing, .left)
+    }
+
+    func testApplyingTheSameStateAgainCommitsNothing() {
+        let registry = CompanionRegistry()
+        let profile = SpriteTestFixtures.makeFixtureProfile(cellSize: 20)
+        registry.register(profile)
+        let clock = ManualClock()
+        let view = CompanionSpriteView(companionID: profile.id, registry: registry, clock: clock)
+        let window = makeWindow()
+        window.addSubview(view)
+        window.makeKeyAndVisible()
+        waitUntilReady(view)
+        view.apply(pose: .run, busy: true, facing: .left)
+
+        let commitsBefore = view.debugCommitCount
+        view.apply(pose: .run, busy: true, facing: .left)
+
+        XCTAssertEqual(view.debugCommitCount, commitsBefore, "an apply matching the current state must not commit again")
+    }
+
+    // MARK: - A shared-engine companion swap tears the outgoing player down
+
+    func testChangingCompanionIDTearsDownTheOutgoingPlayersSharedTracks() {
+        let registry = CompanionRegistry()
+        let profileA = SpriteTestFixtures.makeFixtureProfile(id: "swap-a", cellSize: 20)
+        let profileB = SpriteTestFixtures.makeFixtureProfile(id: "swap-b", cellSize: 20)
+        registry.register(profileA)
+        registry.register(profileB)
+        let clock = ManualClock()
+        let engine = MotionEngine(clock: clock)
+        let view = CompanionSpriteView(companionID: profileA.id, registry: registry, engine: engine, clock: clock)
+        let window = makeWindow()
+        window.addSubview(view)
+        window.makeKeyAndVisible()
+        waitUntilReady(view)
+
+        view.pose = .idle
+        view.isBusy = true
+        clock.advance(ms: 50, frameMs: 1000.0 / 60)
+        XCTAssertTrue(engine.isAnyTrackActive(labelPrefix: "sprite."), "setup: a busy idle loop must be active on the shared engine")
+
+        // The swap lands mid busy-idle-loop, the bug's exact shape - the
+        // incoming player commits the same busy state next, so only
+        // turning busy off afterward isolates a leftover outgoing loop.
+        view.companionID = profileB.id
+        waitUntilReady(view)
+        view.isBusy = false
+        view.pose = .sit
+        clock.advance(ms: 20_000, frameMs: 1000.0 / 60)
+
+        XCTAssertFalse(engine.isAnyTrackActive(labelPrefix: "sprite."), "the outgoing player's own loop track must not survive a companion swap")
+    }
+
     func testFacingLeftFlipsTheCurrentLayersTransform() {
         let registry = CompanionRegistry()
         let profile = SpriteTestFixtures.makeFixtureProfile(cellSize: 20)
@@ -715,6 +788,60 @@ final class CompanionSpriteViewTests: XCTestCase {
         }
         XCTAssertEqual(view.visualState, .ready)
         XCTAssertTrue(view.debugLayer(for: .idle).contents as AnyObject? === readyContents, "a stale decode for a companion no longer selected must never replace the current one's contents")
+    }
+
+    // MARK: - Shared-engine mode
+
+    func testSharedEngineModeRendersOnlyThroughRenderTickNotAFrameHandler() {
+        let registry = CompanionRegistry()
+        let profile = SpriteTestFixtures.makeFixtureProfile(cellSize: 20)
+        registry.register(profile)
+        let clock = ManualClock()
+        let engine = MotionEngine(clock: clock)
+        let view = CompanionSpriteView(companionID: profile.id, registry: registry, engine: engine, clock: clock)
+        let window = makeWindow()
+        window.addSubview(view)
+        window.makeKeyAndVisible()
+        waitUntilReady(view)
+
+        view.pose = .run
+        let rectAfterCommit = view.debugLayer(for: .run).contentsRect
+
+        // Advancing the shared clock ticks the engine (the engine's own
+        // init installed that handler, and shared mode never replaces it)
+        // but must not by itself repaint this view - only `renderTick()` does.
+        clock.advance(ms: 500, frameMs: 1000.0 / 60)
+        let rectAfterAdvanceOnly = view.debugLayer(for: .run).contentsRect
+        XCTAssertEqual(rectAfterAdvanceOnly, rectAfterCommit, "advancing the shared clock alone must not repaint this view's layers")
+
+        view.renderTick()
+        let rectAfterRenderTick = view.debugLayer(for: .run).contentsRect
+        XCTAssertNotEqual(rectAfterRenderTick, rectAfterCommit, "renderTick must repaint the layer with whatever the shared engine already advanced the frame track to")
+    }
+
+    func testSharedEngineModeNeverSuspendsResumesOrSetsFrameRateHint() {
+        let registry = CompanionRegistry()
+        let profile = SpriteTestFixtures.makeFixtureProfile(cellSize: 20)
+        registry.register(profile)
+        let clock = DisplayLinkClock()
+        let engine = MotionEngine(clock: clock)
+        XCTAssertEqual(clock.frameRateHint, .motion, "setup: a fresh clock starts at its own default")
+
+        let view = CompanionSpriteView(companionID: profile.id, registry: registry, engine: engine, clock: clock)
+        XCTAssertEqual(clock.frameRateHint, .motion, "shared mode must never set the frame rate hint - the owner does")
+
+        // Not asserted against nil/paused here: the mount greeting alone
+        // can legitimately start the link running, in either mode. What
+        // shared mode must never do is layer its own suspend/resume on top.
+        let pausedBeforeWindow = clock.debugIsLinkPaused
+        let window = makeWindow()
+        window.addSubview(view)
+        window.makeKeyAndVisible()
+        XCTAssertEqual(clock.debugIsLinkPaused, pausedBeforeWindow, "entering a window in shared mode must not resume (or suspend) anything - the owner does")
+
+        let pausedBeforeRemoval = clock.debugIsLinkPaused
+        view.removeFromSuperview()
+        XCTAssertEqual(clock.debugIsLinkPaused, pausedBeforeRemoval, "leaving a window in shared mode must not suspend (or resume) anything either")
     }
 }
 #endif

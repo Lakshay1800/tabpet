@@ -3,25 +3,29 @@ import TabPetCore
 import TabPetUIKit
 
 /// The gallery: an animal picker, a busy switch, two `CompanionSpriteView`s
-/// (88pt, 54pt) with pose and facing buttons. A press on either sprite is
-/// handled by the view itself, never by a gesture this controller adds.
+/// at 88pt and 54pt, plus the same picker driving the tab bar perch, a
+/// bottomExtra switch, a push with a transient slot, and a full screen modal.
 final class ControlsViewController: UIViewController {
     private let ids = CompanionRegistry.shared.ids()
     private var selectedID: String
     private var pose: PupPose = .idle
     private var facing: Facing = .right
     private var isBusy = false
+    private var busyRelease: (() -> Void)?
 
+    private let perch: CompanionPerchView
     private let picker = UISegmentedControl()
     private let busySwitch = UISwitch()
+    private let raisedSwitch = UISwitch()
     private let largeSprite: CompanionSpriteView
     private let smallSprite: CompanionSpriteView
     private let largeSizeLabel = UILabel()
     private let smallSizeLabel = UILabel()
 
-    init() {
+    init(perch: CompanionPerchView) {
         let ids = CompanionRegistry.shared.ids()
         selectedID = ids.first ?? CompanionId.DEFAULT_COMPANION_ID
+        self.perch = perch
         largeSprite = CompanionSpriteView(companionID: selectedID, size: 88)
         smallSprite = CompanionSpriteView(companionID: selectedID, size: 54)
         super.init(nibName: nil, bundle: nil)
@@ -52,6 +56,7 @@ final class ControlsViewController: UIViewController {
         picker.addTarget(self, action: #selector(animalChanged), for: .valueChanged)
 
         busySwitch.addTarget(self, action: #selector(busyChanged), for: .valueChanged)
+        raisedSwitch.addTarget(self, action: #selector(raisedChanged), for: .valueChanged)
 
         largeSizeLabel.text = "88 pt"
         largeSizeLabel.font = .preferredFont(forTextStyle: .caption1)
@@ -67,6 +72,7 @@ final class ControlsViewController: UIViewController {
     private func buildLayout() {
         let animalRow = labeledRow(label: "Animal", control: picker)
         let busyRow = labeledRow(label: "Busy", control: busySwitch)
+        let raisedRow = labeledRow(label: "Raised seat", control: raisedSwitch)
 
         let largeColumn = UIStackView(arrangedSubviews: [largeSprite, largeSizeLabel])
         largeColumn.axis = .vertical
@@ -93,13 +99,15 @@ final class ControlsViewController: UIViewController {
         poseRow.spacing = 12
 
         let flipButton = makeButton(title: "Flip facing", action: #selector(flipFacing))
+        let pushButton = makeButton(title: "Push a transient perch", action: #selector(pushTransient))
+        let modalButton = makeButton(title: "Present a full screen modal", action: #selector(presentModal))
 
         let stack = UIStackView(arrangedSubviews: [
-            animalRow, busyRow, gallery, poseRow, flipButton,
+            animalRow, busyRow, raisedRow, gallery, poseRow, flipButton, pushButton, modalButton,
         ])
         stack.axis = .vertical
         stack.spacing = 24
-        stack.setCustomSpacing(32, after: busyRow)
+        stack.setCustomSpacing(32, after: raisedRow)
         stack.setCustomSpacing(32, after: gallery)
 
         let scrollView = UIScrollView()
@@ -147,12 +155,37 @@ final class ControlsViewController: UIViewController {
         selectedID = ids[picker.selectedSegmentIndex]
         largeSprite.companionID = selectedID
         smallSprite.companionID = selectedID
+        perch.companionID = selectedID
     }
 
     @objc
     private func busyChanged() {
         isBusy = busySwitch.isOn
+        if isBusy {
+            busyRelease = CompanionState.shared.beginCompanionBusy()
+        } else {
+            busyRelease?()
+            busyRelease = nil
+        }
         applyState()
+    }
+
+    @objc
+    private func raisedChanged() {
+        perch.bottomExtra = raisedSwitch.isOn ? 24 : 0
+    }
+
+    @objc
+    private func pushTransient() {
+        let pushed = PushedPerchViewController(companionID: selectedID, rootPerch: perch)
+        navigationController?.pushViewController(pushed, animated: true)
+    }
+
+    @objc
+    private func presentModal() {
+        let modal = ModalDemoViewController()
+        modal.modalPresentationStyle = .fullScreen
+        present(modal, animated: true)
     }
 
     @objc

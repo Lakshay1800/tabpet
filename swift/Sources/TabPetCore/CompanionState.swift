@@ -107,4 +107,8 @@ public final class CompanionState {
         busyClaims = 0
         slots.removeAll()
     }
+
+    /// Test-only: the live, already-compacted listener count - proves a
+    /// dropped subscriber's own slot was actually removed, not merely tombstoned.
+    var debugListenerCount: Int { slots.count }
 }

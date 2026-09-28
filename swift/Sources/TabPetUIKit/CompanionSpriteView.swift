@@ -64,23 +64,35 @@ public final class CompanionSpriteView: UIView, SpriteRenderer {
 
     public var pose: PupPose = .idle {
         didSet {
-            guard pose != oldValue else { return }
+            guard pose != oldValue, !isApplyingBatch else { return }
             commit()
         }
     }
 
     public var isBusy: Bool = false {
         didSet {
-            guard isBusy != oldValue else { return }
+            guard isBusy != oldValue, !isApplyingBatch else { return }
             commit()
         }
     }
 
     public var facing: Facing = .right {
         didSet {
-            guard facing != oldValue else { return }
+            guard facing != oldValue, !isApplyingBatch else { return }
             commit()
         }
+    }
+
+    /// Sets pose, busy and facing together and commits once - a perch
+    /// driving all three off one render state must not commit per property.
+    package func apply(pose: PupPose, busy: Bool, facing: Facing) {
+        guard pose != self.pose || busy != isBusy || facing != self.facing else { return }
+        isApplyingBatch = true
+        self.pose = pose
+        isBusy = busy
+        self.facing = facing
+        isApplyingBatch = false
+        commit()
     }
 
     public var onPress: (() -> Void)?
@@ -123,13 +135,20 @@ public final class CompanionSpriteView: UIView, SpriteRenderer {
     private var _size: CGFloat
     private let clock: MotionClock
     private let ownsClock: Bool
+    /// Suppresses the per-property `commit()` inside `apply(pose:busy:facing:)`
+    /// so the three writes there land as one commit, not up to three.
+    private var isApplyingBatch = false
+    /// Non-nil only in shared-engine mode: the engine `reloadProfile()`
+    /// builds `SpritePlayer` against, rather than the one `SpritePlayer`'s
+    /// own owned-mode initializer would otherwise create from `clock`.
+    private let sharedEngine: MotionEngine?
     /// The raw bit pattern of the last refused `size`, so a repeat of the
     /// same bad value (NaN included) reports only once, not on every set.
     private var lastReportedInvalidSizeBits: UInt64?
 
     /// A host never passes its own clock: `DisplayLinkClock` is `package`,
     /// and one engine per clock means two views sharing one would fight
-    /// over its `frameHandler`. Only this package reaches the init below.
+    /// over its `frameHandler`. Only this package reaches the inits below.
     public convenience init(
         companionID: String = CompanionId.DEFAULT_COMPANION_ID,
         registry: CompanionRegistry = .shared,
@@ -139,12 +158,45 @@ public final class CompanionSpriteView: UIView, SpriteRenderer {
         self.init(companionID: companionID, registry: registry, size: size, clock: nil, onError: onError)
     }
 
-    package init(
+    /// `clock` nil builds and owns a real `DisplayLinkClock`; a non-nil
+    /// clock is injected (for deterministic tests), but this view still
+    /// builds its own `SpritePlayer`-owned engine against it, not a shared one.
+    package convenience init(
         companionID: String = CompanionId.DEFAULT_COMPANION_ID,
         registry: CompanionRegistry = .shared,
         size: CGFloat = 88,
         clock: MotionClock?,
         onError: ((Error, String) -> Void)? = nil
+    ) {
+        if let clock {
+            self.init(companionID: companionID, registry: registry, size: size, clock: clock, ownsClock: false, sharedEngine: nil, onError: onError)
+        } else {
+            self.init(companionID: companionID, registry: registry, size: size, clock: DisplayLinkClock(), ownsClock: true, sharedEngine: nil, onError: onError)
+        }
+    }
+
+    /// Shared-engine mode: `engine` and `clock` are owned elsewhere (a
+    /// perch view driving one clock for its own motion and this sprite).
+    /// This view never suspends, resumes or sets `clock`'s frame rate hint.
+    package convenience init(
+        companionID: String = CompanionId.DEFAULT_COMPANION_ID,
+        registry: CompanionRegistry = .shared,
+        size: CGFloat = 88,
+        engine: MotionEngine,
+        clock: MotionClock,
+        onError: ((Error, String) -> Void)? = nil
+    ) {
+        self.init(companionID: companionID, registry: registry, size: size, clock: clock, ownsClock: false, sharedEngine: engine, onError: onError)
+    }
+
+    private init(
+        companionID: String,
+        registry: CompanionRegistry,
+        size: CGFloat,
+        clock: MotionClock,
+        ownsClock: Bool,
+        sharedEngine: MotionEngine?,
+        onError: ((Error, String) -> Void)?
     ) {
         self.companionID = companionID
         self.registry = registry
@@ -156,13 +208,9 @@ public final class CompanionSpriteView: UIView, SpriteRenderer {
             // own applyState) does not report it again.
             self.lastReportedInvalidSizeBits = Double(size).bitPattern
         }
-        if let clock {
-            self.clock = clock
-            self.ownsClock = false
-        } else {
-            self.clock = DisplayLinkClock()
-            self.ownsClock = true
-        }
+        self.clock = clock
+        self.ownsClock = ownsClock
+        self.sharedEngine = sharedEngine
         super.init(frame: CGRect(x: 0, y: 0, width: _size, height: _size))
 
         if ownsClock, let ownClock = self.clock as? DisplayLinkClock {
@@ -272,6 +320,31 @@ public final class CompanionSpriteView: UIView, SpriteRenderer {
 
     /// Test-only: the view's own press gesture recognizer.
     var debugPressGesture: UILongPressGestureRecognizer? { pressGesture }
+
+    /// Test-only: how many times `commit()` has run, so a batched
+    /// `apply(pose:busy:facing:)` can be proven to commit exactly once.
+    private(set) var debugCommitCount = 0
+
+    /// Shared-engine mode only: the owner calls this once, right after
+    /// ticking the shared engine, standing in for the `frameHandler` this
+    /// view never installs in that mode. A no-op before a profile resolves.
+    package func renderTick() {
+        spritePlayer?.renderTick()
+    }
+
+    /// Shared-engine mode: called once by the owning perch's own teardown -
+    /// removes this view's sprite tracks from the shared engine. A no-op
+    /// in owned mode, harmless to call either way.
+    package func teardown() {
+        spritePlayer?.teardown()
+    }
+
+    /// Shared-engine mode only: lets the owner fold `needsFullFrameRate`
+    /// into its own frame rate hint for the one clock both share. `nil`
+    /// before a profile resolves.
+    package var currentRenderState: SpriteRenderState? {
+        spritePlayer?.currentState
+    }
 
     public override func layoutSubviews() {
         super.layoutSubviews()
@@ -489,13 +562,30 @@ public final class CompanionSpriteView: UIView, SpriteRenderer {
             ownClock.frameRateHint = spriteFrameRateHint
         }
 
-        let player = SpritePlayer(
-            profile: profile,
-            clock: clock,
-            initialFacing: facing,
-            initialReduceMotion: UIAccessibility.isReduceMotionEnabled,
-            onError: { [weak self] error, site in self?.onError?(error, site) }
-        )
+        // Removes the outgoing player's tracks before it is dropped - in
+        // shared-engine mode a loop track (a held run, the busy idle loop)
+        // would otherwise keep the shared clock awake forever.
+        spritePlayer?.teardown()
+
+        let player: SpritePlayer
+        if let sharedEngine {
+            player = SpritePlayer(
+                profile: profile,
+                engine: sharedEngine,
+                clock: clock,
+                initialFacing: facing,
+                initialReduceMotion: UIAccessibility.isReduceMotionEnabled,
+                onError: { [weak self] error, site in self?.onError?(error, site) }
+            )
+        } else {
+            player = SpritePlayer(
+                profile: profile,
+                clock: clock,
+                initialFacing: facing,
+                initialReduceMotion: UIAccessibility.isReduceMotionEnabled,
+                onError: { [weak self] error, site in self?.onError?(error, site) }
+            )
+        }
         player.renderer = self
         player.onSitDone = { [weak self] in self?.onSitDone?() }
         spritePlayer = player
@@ -596,6 +686,7 @@ public final class CompanionSpriteView: UIView, SpriteRenderer {
     }
 
     private func commit() {
+        debugCommitCount += 1
         spritePlayer?.commit(
             SpriteCommit(pose: pose, busy: isBusy, facing: facing, reduceMotion: UIAccessibility.isReduceMotionEnabled)
         )

@@ -59,14 +59,58 @@ package final class SpritePlayer {
     /// reference to it and assert it deallocates with the player.
     package var debugEngine: MotionEngine { engine }
 
-    package init(
+    private var pendingSitDoneHandle: MotionCancellable?
+    private var isTornDown = false
+
+    package convenience init(
         profile: CompanionProfile,
         clock: MotionClock,
         initialFacing: Facing = .right,
         initialReduceMotion: Bool = false,
         onError: ((MotionError, String) -> Void)? = nil
     ) {
-        let engine = MotionEngine(clock: clock)
+        self.init(
+            profile: profile,
+            engine: MotionEngine(clock: clock),
+            clock: clock,
+            installsFrameHandler: true,
+            initialFacing: initialFacing,
+            initialReduceMotion: initialReduceMotion,
+            onError: onError
+        )
+    }
+
+    /// Shared-engine mode: the engine and clock are owned elsewhere - a
+    /// perch view driving one clock for both its controller and this player.
+    /// Installs no frame handler; the owner calls `renderTick()` after each tick.
+    package convenience init(
+        profile: CompanionProfile,
+        engine: MotionEngine,
+        clock: MotionClock,
+        initialFacing: Facing = .right,
+        initialReduceMotion: Bool = false,
+        onError: ((MotionError, String) -> Void)? = nil
+    ) {
+        self.init(
+            profile: profile,
+            engine: engine,
+            clock: clock,
+            installsFrameHandler: false,
+            initialFacing: initialFacing,
+            initialReduceMotion: initialReduceMotion,
+            onError: onError
+        )
+    }
+
+    private init(
+        profile: CompanionProfile,
+        engine: MotionEngine,
+        clock: MotionClock,
+        installsFrameHandler: Bool,
+        initialFacing: Facing,
+        initialReduceMotion: Bool,
+        onError: ((MotionError, String) -> Void)?
+    ) {
         self.engine = engine
         self.clock = clock
         // Assigned before the boundary checks below run: a construction-time
@@ -103,17 +147,22 @@ package final class SpritePlayer {
         self.pressTrack = engine.makeTrack(label: "sprite.press", initialValue: 0)
         self.layerFacing = [.idle: initialFacing, .run: initialFacing, .sit: initialFacing]
 
-        engine.onError = { [weak self] error, label in self?.onError?(error, label) }
-        // Weak on all three - a strong `engine` capture would chain clock
-        // -> closure -> engine -> clock into a cycle nothing ever breaks.
-        // A clock that outlives the player or engine is told to stop asking.
-        clock.frameHandler = { [weak self, weak engine, weak clock] now in
-            guard let self, let engine else {
-                clock?.setWantsFrames(false)
-                return
+        // Shared-engine mode: the engine's `onError`/`frameHandler` belong
+        // to the owner, which may hold other tracks on the same engine -
+        // this player only touches its own tracks; `renderTick()` stands in for it.
+        if installsFrameHandler {
+            engine.onError = { [weak self] error, label in self?.onError?(error, label) }
+            // Weak on all three - a strong `engine` capture would chain clock
+            // -> closure -> engine -> clock into a cycle nothing ever breaks.
+            // A clock that outlives the player or engine is told to stop asking.
+            clock.frameHandler = { [weak self, weak engine, weak clock] now in
+                guard let self, let engine else {
+                    clock?.setWantsFrames(false)
+                    return
+                }
+                engine.tick(now: now)
+                self.renderCurrentState()
             }
-            engine.tick(now: now)
-            self.renderCurrentState()
         }
 
         if runFpsRefused {
@@ -135,6 +184,7 @@ package final class SpritePlayer {
     /// below runs only when its own fields changed since the last commit
     /// (mirrors companion-sprite.tsx); the first commit forces all three.
     package func commit(_ next: SpriteCommit) {
+        guard !isTornDown else { return }
         let prior = lastCommit
         // Against a nil `prior` every comparison differs, so the first commit runs all three.
         let poseChanged = prior?.pose != next.pose
@@ -290,6 +340,7 @@ package final class SpritePlayer {
 
     /// TS: `Gesture.Tap().onBegin` - `pressed.set(reduceMotion ? 0 : withTiming(1, {duration: PRESS_IN_MS}))`.
     package func pressBegin() {
+        guard !isTornDown else { return }
         let reduceMotion = lastCommit?.reduceMotion ?? false
         if reduceMotion {
             engine.set(pressTrack, 0)
@@ -301,6 +352,7 @@ package final class SpritePlayer {
 
     /// TS: `Gesture.Tap().onFinalize` - always runs, paired with every `pressBegin()`.
     package func pressEnd() {
+        guard !isTornDown else { return }
         let reduceMotion = lastCommit?.reduceMotion ?? false
         if reduceMotion {
             engine.set(pressTrack, 0)
@@ -329,6 +381,13 @@ package final class SpritePlayer {
     /// whatever the last `renderer` call carried, for a caller that has no
     /// renderer installed (or wants a synchronous read outside one).
     package var currentState: SpriteRenderState { buildState() }
+
+    /// Shared-engine mode's own render step: the owner calls this once,
+    /// right after ticking the shared engine, standing in for the
+    /// `frameHandler` the owned-mode initializer installs on its own clock.
+    package func renderTick() {
+        renderCurrentState()
+    }
 
     private func renderCurrentState() {
         guard let renderer else {
@@ -365,9 +424,28 @@ package final class SpritePlayer {
     /// a one-frame sit finishes synchronously inside `applyPoseDissolve`,
     /// and a host re-entering `commit` there would corrupt the outer call.
     private func scheduleOnSitDone() {
-        _ = clock.after(milliseconds: 0) { [weak self] in
+        pendingSitDoneHandle?.cancel()
+        pendingSitDoneHandle = clock.after(milliseconds: 0) { [weak self] in
+            self?.pendingSitDoneHandle = nil
             self?.onSitDone?()
         }
+    }
+
+    // MARK: - Teardown
+
+    /// Idempotent: removes this player's seven tracks (three frame, three
+    /// opacity, one press) from the engine and cancels any pending
+    /// `onSitDone` timer. Call on the outgoing player of a shared-engine swap.
+    package func teardown() {
+        guard !isTornDown else { return }
+        isTornDown = true
+        pendingSitDoneHandle?.cancel()
+        pendingSitDoneHandle = nil
+        for pose in PupPose.allCases {
+            engine.remove(frameTrack[pose])
+            engine.remove(opacityTrack[pose])
+        }
+        engine.remove(pressTrack)
     }
 
     // MARK: - Pure helpers
