@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
 - Added: a Swift package for a native iOS app, from the same repository URL. Products: `TabPetUIKit` for the views, `TabPetCore` for the registry and profiles, one `TabPetAnimal<Name>` product per animal, and `TabPetAnimals` for all six. An app that links one animal ships only that animal's sheets.
 - Added: `CompanionPerchView` for UIKit and `CompanionPerch` for SwiftUI, the animal on the tab bar. Also `CompanionSpriteView` and `CompanionSprite`, the animal on its own.
