@@ -106,9 +106,10 @@ final class ControlsViewController: UIViewController {
         let flipButton = makeButton(title: "Flip facing", action: #selector(flipFacing))
         let pushButton = makeButton(title: "Push a transient perch", action: #selector(pushTransient))
         let modalButton = makeButton(title: "Present a full screen modal", action: #selector(presentModal))
+        let swiftUIButton = makeButton(title: "Switch to the SwiftUI demo", action: #selector(switchToSwiftUI))
 
         let stack = UIStackView(arrangedSubviews: [
-            animalRow, scrubRow, busyRow, raisedRow, gallery, poseRow, flipButton, pushButton, modalButton,
+            animalRow, scrubRow, busyRow, raisedRow, gallery, poseRow, flipButton, pushButton, modalButton, swiftUIButton,
         ])
         stack.axis = .vertical
         stack.spacing = 24
@@ -189,6 +190,11 @@ final class ControlsViewController: UIViewController {
     private func pushTransient() {
         let pushed = PushedPerchViewController(companionID: selectedID, rootPerch: perch)
         navigationController?.pushViewController(pushed, animated: true)
+    }
+
+    @objc
+    private func switchToSwiftUI() {
+        DemoRoot.showSwiftUI(in: view.window)
     }
 
     @objc
