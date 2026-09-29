@@ -1,9 +1,9 @@
 import UIKit
 import TabPetUIKit
 
-/// Launch arguments for screen recordings, where synthetic touches do not
-/// drive the bar's recognizer: `-demoAnimal <id>`, `-demoStartTab <0 to 4>`,
-/// `-demoBarScrub native|exclusive`, `-scriptedDrag near|far|cancel`.
+/// Launch arguments for repeatable screen recordings: `-demoAnimal <id>`,
+/// `-demoStartTab <0 to 4>`, `-demoBarScrub native|exclusive`,
+/// `-scriptedDrag near|far|cancel`.
 struct DemoLaunchOptions {
     enum Drag: String {
         case near
