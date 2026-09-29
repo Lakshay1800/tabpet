@@ -15,6 +15,7 @@ final class ControlsViewController: UIViewController {
 
     private let perch: CompanionPerchView
     private let picker = UISegmentedControl()
+    private let scrubPicker = UISegmentedControl(items: ["Native", "Exclusive"])
     private let busySwitch = UISwitch()
     private let raisedSwitch = UISwitch()
     private let largeSprite: CompanionSpriteView
@@ -55,6 +56,9 @@ final class ControlsViewController: UIViewController {
         picker.selectedSegmentIndex = 0
         picker.addTarget(self, action: #selector(animalChanged), for: .valueChanged)
 
+        scrubPicker.selectedSegmentIndex = perch.barScrub == .exclusive ? 1 : 0
+        scrubPicker.addTarget(self, action: #selector(scrubChanged), for: .valueChanged)
+
         busySwitch.addTarget(self, action: #selector(busyChanged), for: .valueChanged)
         raisedSwitch.addTarget(self, action: #selector(raisedChanged), for: .valueChanged)
 
@@ -71,6 +75,7 @@ final class ControlsViewController: UIViewController {
 
     private func buildLayout() {
         let animalRow = labeledRow(label: "Animal", control: picker)
+        let scrubRow = labeledRow(label: "Bar scrub", control: scrubPicker)
         let busyRow = labeledRow(label: "Busy", control: busySwitch)
         let raisedRow = labeledRow(label: "Raised seat", control: raisedSwitch)
 
@@ -103,7 +108,7 @@ final class ControlsViewController: UIViewController {
         let modalButton = makeButton(title: "Present a full screen modal", action: #selector(presentModal))
 
         let stack = UIStackView(arrangedSubviews: [
-            animalRow, busyRow, raisedRow, gallery, poseRow, flipButton, pushButton, modalButton,
+            animalRow, scrubRow, busyRow, raisedRow, gallery, poseRow, flipButton, pushButton, modalButton,
         ])
         stack.axis = .vertical
         stack.spacing = 24
@@ -156,6 +161,11 @@ final class ControlsViewController: UIViewController {
         largeSprite.companionID = selectedID
         smallSprite.companionID = selectedID
         perch.companionID = selectedID
+    }
+
+    @objc
+    private func scrubChanged() {
+        perch.barScrub = scrubPicker.selectedSegmentIndex == 1 ? .exclusive : .native
     }
 
     @objc

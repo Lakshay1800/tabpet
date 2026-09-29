@@ -10,6 +10,7 @@
 		0AF75A57FCD3771065ED52AF /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DFCB66A33BEC6E3BD241EAE /* AppDelegate.swift */; };
 		2D8F88B7E665882131D3139B /* ListViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3F72B03E261115129FD7662 /* ListViewController.swift */; };
 		3946BBB248F8A454F9D34386 /* TabPetCore in Frameworks */ = {isa = PBXBuildFile; productRef = CB5318A1335B5969BDF37DB7 /* TabPetCore */; };
+		4D697C3CE9C44F467B801906 /* ScriptedFinger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A4B693CA0C995873E000775 /* ScriptedFinger.swift */; };
 		66BF316D6BB45C2353404E3D /* TabPetAnimals in Frameworks */ = {isa = PBXBuildFile; productRef = 9AF2E559B5F8C6C73A019B25 /* TabPetAnimals */; };
 		6C5D5E6BF3686BB47441BE1A /* PerchDemoScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBAE4E6920AD4C663F3EECF6 /* PerchDemoScreens.swift */; };
 		6F7A2BA90F5F11B54FA0546F /* ControlsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A9E8B21FA6FF47AB9477E89 /* ControlsViewController.swift */; };
@@ -22,6 +23,7 @@
 		1DFCB66A33BEC6E3BD241EAE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		3BAD6DA34D2D9B9B43925EF8 /* RootTabBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabBarController.swift; sourceTree = "<group>"; };
 		8A9E8B21FA6FF47AB9477E89 /* ControlsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlsViewController.swift; sourceTree = "<group>"; };
+		9A4B693CA0C995873E000775 /* ScriptedFinger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptedFinger.swift; sourceTree = "<group>"; };
 		9C26A626895A7AB851BCA601 /* tabpet */ = {isa = PBXFileReference; lastKnownFileType = folder; name = tabpet; path = ../..; sourceTree = SOURCE_ROOT; };
 		A057B20A64CFE4D607867576 /* TabPetDemo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TabPetDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BBAE4E6920AD4C663F3EECF6 /* PerchDemoScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerchDemoScreens.swift; sourceTree = "<group>"; };
@@ -52,6 +54,7 @@
 				BBAE4E6920AD4C663F3EECF6 /* PerchDemoScreens.swift */,
 				3BAD6DA34D2D9B9B43925EF8 /* RootTabBarController.swift */,
 				FAF3E75D40F69AFBD7ECEAA2 /* SceneDelegate.swift */,
+				9A4B693CA0C995873E000775 /* ScriptedFinger.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -160,6 +163,7 @@
 				6C5D5E6BF3686BB47441BE1A /* PerchDemoScreens.swift in Sources */,
 				E8D9F02BC4D8D60D724B33D3 /* RootTabBarController.swift in Sources */,
 				E93817379035276CE70795C2 /* SceneDelegate.swift in Sources */,
+				4D697C3CE9C44F467B801906 /* ScriptedFinger.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

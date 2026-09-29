@@ -34,6 +34,40 @@ public enum CompanionPerchError: Error, Sendable, Equatable {
     case noProfileRegistered
 }
 
+/// Handle for one `FingerSource` subscription. `cancel()` is idempotent.
+@MainActor
+public final class FingerSubscription {
+    private var onCancel: (@MainActor () -> Void)?
+
+    public init(onCancel: @escaping @MainActor () -> Void) {
+        self.onCancel = onCancel
+    }
+
+    /// Stops the events. Safe to call more than once.
+    public func cancel() {
+        let handler = onCancel
+        onCancel = nil
+        handler?()
+    }
+}
+
+/// A feed of finger samples in window space, the counterpart of a native
+/// tab bar recognizer for a bar the library cannot attach to.
+public protocol FingerSource: AnyObject {
+    /// Starts delivering events to `listener` until the subscription is cancelled.
+    @MainActor func subscribe(_ listener: @escaping @MainActor (PanEvent) -> Void) -> FingerSubscription
+}
+
+/// Where the perch reads the finger from.
+public enum FingerSourceChoice {
+    /// A pan recognizer this view adds to the tab bar.
+    case nativeTabBar
+    /// A host-supplied feed, for a custom bar.
+    case custom(FingerSource)
+    /// No finger events at all.
+    case none
+}
+
 /// Holds a weak reference to the owning view, so closures built before
 /// `self` finishes initializing can still reach it afterward - the same
 /// weak-target indirection `DisplayLinkClock`'s own proxy uses.
@@ -42,9 +76,9 @@ private final class PerchViewBox {
     weak var view: CompanionPerchView?
 }
 
-/// A companion sitting on a real tab bar, running when the tab changes.
-/// Owns one clock and engine shared with its embedded sprite view and
-/// installs their single frame handler. No finger path or route yet.
+/// A companion sitting on a real tab bar. It runs when the tab changes and
+/// chases a finger that drags along the bar. Owns one clock and engine,
+/// shared with its embedded sprite view, and installs their frame handler.
 @MainActor
 public final class CompanionPerchView: UIView {
     // MARK: - Public API
@@ -102,6 +136,34 @@ public final class CompanionPerchView: UIView {
         }
     }
 
+    /// Whether the bar's own scrub rides along (`.native`) or the host
+    /// selects the tab on release through `onDragRelease` (`.exclusive`).
+    /// Applies live.
+    public var barScrub: BarScrubMode = .native {
+        didSet {
+            panObserver?.scrubMode = barScrub
+            controller.barScrub = Self.coreScrub(barScrub)
+        }
+    }
+
+    /// Called once with the slot when a drag ends over another slot in
+    /// `.exclusive` mode. Never for a cancelled drag.
+    public var onDragRelease: ((Int) -> Void)? {
+        didSet { controller.onDragRelease = onDragRelease }
+    }
+
+    /// Where finger samples come from. Changing it drops any drag in
+    /// progress, so the animal cannot be left running.
+    public var fingerSource: FingerSourceChoice = .nativeTabBar {
+        didSet {
+            guard !isTornDown else { return }
+            stopFingerSources()
+            controller.resetFinger()
+            applyRenderState()
+            syncFingerSource()
+        }
+    }
+
     public var onAction: (() -> Void)?
 
     public var actionLabel: String? {
@@ -139,6 +201,9 @@ public final class CompanionPerchView: UIView {
     /// the transition into this state, not on every distinct invalid anchor
     /// (a host at slotCount 0 changes `anchor.slotIndex` on every tab change).
     private var isAnchorInvalid = false
+    private var panObserver: TabBarPanObserver?
+    private var customSubscription: FingerSubscription?
+    private weak var hostTabBar: UITabBar?
 
     public init(
         companionID: String = CompanionId.DEFAULT_COMPANION_ID,
@@ -213,7 +278,7 @@ public final class CompanionPerchView: UIView {
         spriteView.onPress = { [weak self] in self?.onAction?() }
         spriteView.onHaptic = { [weak self] kind in self?.onHaptic?(kind) }
 
-        engine.onError = { [weak self] error, label in self?.onError?(error, label) }
+        controller.onError = { [weak self] error, label in self?.onError?(error, label) }
         clock.frameHandler = { [weak self] now in self?.handleFrame(now: now) }
 
         NotificationCenter.default.addObserver(
@@ -334,6 +399,8 @@ public final class CompanionPerchView: UIView {
             bottomAnchor.constraint(equalTo: tabBarController.view.bottomAnchor),
         ])
         tabBarController.view.bringSubviewToFront(self)
+        hostTabBar = tabBarController.tabBar
+        syncFingerSource()
     }
 
     /// Removes this view from its superview and tears its controller and
@@ -381,6 +448,7 @@ public final class CompanionPerchView: UIView {
             if sizeChanged { runFocusPass() }
         }
         applyRenderState()
+        syncFingerSource()
     }
 
     public override func willMove(toSuperview newSuperview: UIView?) {
@@ -397,6 +465,7 @@ public final class CompanionPerchView: UIView {
             // modal, say) suspends the clock and blurs - it does not tear
             // the controller down, and the busy listener stays subscribed.
             clock.suspend()
+            stopFingerSources()
             runFocusPass(isFocused: false)
             return
         }
@@ -408,6 +477,7 @@ public final class CompanionPerchView: UIView {
         lastKnownScreenWidth = width.isFinite ? width : Double(UIScreen.main.bounds.width)
         lastKnownScreenHeight = height.isFinite ? height : Double(UIScreen.main.bounds.height)
         runFocusPass()
+        syncFingerSource()
     }
 
     @objc private func reduceMotionStatusDidChange() {
@@ -440,9 +510,71 @@ public final class CompanionPerchView: UIView {
         guard !isTornDown else { return }
         isTornDown = true
         clock.suspend()
+        stopFingerSources()
         controller.teardown()
         spriteView.teardown()
         NotificationCenter.default.removeObserver(self)
+    }
+
+    // MARK: - Finger
+
+    private static func coreScrub(_ mode: BarScrubMode) -> BarScrub {
+        switch mode {
+        case .native: return .native
+        case .exclusive: return .exclusive
+        }
+    }
+
+    /// Brings the live source in line with `fingerSource`. Runs on every
+    /// layout pass, so a bar that was not there yet is picked up later.
+    private func syncFingerSource() {
+        guard !isTornDown, let window else { return }
+        switch fingerSource {
+        case .nativeTabBar:
+            customSubscription?.cancel()
+            customSubscription = nil
+            let observer = panObserver ?? makePanObserver()
+            guard !observer.isAttached else { return }
+            if let bar = hostTabBar ?? TabBarMeasurer.findTabBar(in: window) {
+                observer.attach(to: bar)
+            }
+        case .custom(let source):
+            panObserver?.detach()
+            panObserver = nil
+            guard customSubscription == nil else { return }
+            customSubscription = source.subscribe { [weak self] event in self?.handleFingerEvent(event) }
+        case .none:
+            stopFingerSources()
+        }
+    }
+
+    private func makePanObserver() -> TabBarPanObserver {
+        let observer = TabBarPanObserver(scrubMode: barScrub) { [weak self] event in
+            self?.handleFingerEvent(event)
+        }
+        panObserver = observer
+        return observer
+    }
+
+    private func stopFingerSources() {
+        panObserver?.detach()
+        panObserver = nil
+        customSubscription?.cancel()
+        customSubscription = nil
+    }
+
+    private func handleFingerEvent(_ event: PanEvent) {
+        guard !isTornDown else { return }
+        let phase: FingerPhase
+        switch event.phase {
+        case .began: phase = .began
+        case .moved: phase = .moved
+        case .ended: phase = .ended
+        case .cancelled: phase = .cancelled
+        }
+        if phase == .began || phase == .moved, !event.x.isFinite { return }
+        controller.handleFinger(x: event.x, phase: phase)
+        applyRenderState()
     }
 
     // MARK: - Frame handler
@@ -510,6 +642,7 @@ public final class CompanionPerchView: UIView {
     var debugClock: DisplayLinkClock { clock }
     var debugIsTornDown: Bool { isTornDown }
     var debugEngine: MotionEngine { engine }
+    var debugPanObserver: TabBarPanObserver? { panObserver }
     private(set) var debugFocusPassCount = 0
 }
 
