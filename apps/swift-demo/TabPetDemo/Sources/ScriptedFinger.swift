@@ -3,7 +3,7 @@ import TabPetUIKit
 
 /// Launch arguments for repeatable screen recordings: `-demoAnimal <id>`,
 /// `-demoStartTab <0 to 4>`, `-demoBarScrub native|exclusive`,
-/// `-scriptedDrag near|far|cancel`.
+/// `-scriptedDrag near|far|cancel`, `-demoRoot uikit|swiftui`.
 struct DemoLaunchOptions {
     enum Drag: String {
         case near
@@ -11,12 +11,19 @@ struct DemoLaunchOptions {
         case cancel
     }
 
+    enum Root: String {
+        case uikit
+        case swiftUI = "swiftui"
+    }
+
+    let root: Root
     let animal: String?
     let startTab: Int?
     let barScrub: BarScrubMode?
     let drag: Drag?
 
     init(defaults: UserDefaults = .standard) {
+        root = defaults.string(forKey: "demoRoot").flatMap(Root.init(rawValue:)) ?? .uikit
         animal = defaults.string(forKey: "demoAnimal")
         startTab = defaults.string(forKey: "demoStartTab").flatMap(Int.init).flatMap { (0..<5).contains($0) ? $0 : nil }
         switch defaults.string(forKey: "demoBarScrub") {

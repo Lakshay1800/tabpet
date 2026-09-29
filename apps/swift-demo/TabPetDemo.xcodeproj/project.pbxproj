@@ -14,6 +14,7 @@
 		66BF316D6BB45C2353404E3D /* TabPetAnimals in Frameworks */ = {isa = PBXBuildFile; productRef = 9AF2E559B5F8C6C73A019B25 /* TabPetAnimals */; };
 		6C5D5E6BF3686BB47441BE1A /* PerchDemoScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBAE4E6920AD4C663F3EECF6 /* PerchDemoScreens.swift */; };
 		6F7A2BA90F5F11B54FA0546F /* ControlsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A9E8B21FA6FF47AB9477E89 /* ControlsViewController.swift */; };
+		B23202B9CCCA61A13287CBDE /* SwiftUIDemoScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B340C9AF17ED111C205846E5 /* SwiftUIDemoScreen.swift */; };
 		E8D9F02BC4D8D60D724B33D3 /* RootTabBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BAD6DA34D2D9B9B43925EF8 /* RootTabBarController.swift */; };
 		E93817379035276CE70795C2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAF3E75D40F69AFBD7ECEAA2 /* SceneDelegate.swift */; };
 		FEFB417BCFA4A3569BE81F13 /* TabPetUIKit in Frameworks */ = {isa = PBXBuildFile; productRef = D3D25D1800D963132F389EC8 /* TabPetUIKit */; };
@@ -26,6 +27,7 @@
 		9A4B693CA0C995873E000775 /* ScriptedFinger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptedFinger.swift; sourceTree = "<group>"; };
 		9C26A626895A7AB851BCA601 /* tabpet */ = {isa = PBXFileReference; lastKnownFileType = folder; name = tabpet; path = ../..; sourceTree = SOURCE_ROOT; };
 		A057B20A64CFE4D607867576 /* TabPetDemo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TabPetDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B340C9AF17ED111C205846E5 /* SwiftUIDemoScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIDemoScreen.swift; sourceTree = "<group>"; };
 		BBAE4E6920AD4C663F3EECF6 /* PerchDemoScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerchDemoScreens.swift; sourceTree = "<group>"; };
 		C3F72B03E261115129FD7662 /* ListViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListViewController.swift; sourceTree = "<group>"; };
 		FAF3E75D40F69AFBD7ECEAA2 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
@@ -55,6 +57,7 @@
 				3BAD6DA34D2D9B9B43925EF8 /* RootTabBarController.swift */,
 				FAF3E75D40F69AFBD7ECEAA2 /* SceneDelegate.swift */,
 				9A4B693CA0C995873E000775 /* ScriptedFinger.swift */,
+				B340C9AF17ED111C205846E5 /* SwiftUIDemoScreen.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -164,6 +167,7 @@
 				E8D9F02BC4D8D60D724B33D3 /* RootTabBarController.swift in Sources */,
 				E93817379035276CE70795C2 /* SceneDelegate.swift in Sources */,
 				4D697C3CE9C44F467B801906 /* ScriptedFinger.swift in Sources */,
+				B23202B9CCCA61A13287CBDE /* SwiftUIDemoScreen.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

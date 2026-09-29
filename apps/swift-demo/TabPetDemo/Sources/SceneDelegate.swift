@@ -10,8 +10,12 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     ) {
         guard let windowScene = scene as? UIWindowScene else { return }
         let window = UIWindow(windowScene: windowScene)
-        window.rootViewController = RootTabBarController()
-        window.makeKeyAndVisible()
         self.window = window
+        window.makeKeyAndVisible()
+        if DemoLaunchOptions().root == .swiftUI {
+            DemoRoot.showSwiftUI(in: window)
+        } else {
+            DemoRoot.showUIKit(in: window)
+        }
     }
 }
