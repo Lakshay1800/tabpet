@@ -115,6 +115,57 @@ final class CompanionPerchViewTests: XCTestCase {
         XCTAssertEqual(onScreenSpriteCenter(perch).x, layout.centers[3], accuracy: 1.5, "the mount seat must use the measured center")
     }
 
+    // MARK: - Route around the pill
+
+    /// Runs the first tab to the last on a real bar and reports whether the
+    /// sprite ever carried a rotation, plus the final settled transform.
+    private func runEndToEnd(aroundRoute: Bool) throws -> (rotated: Bool, transform: CGAffineTransform, x: Double, lastCenter: Double) {
+        let registry = CompanionRegistry()
+        let profile = SpriteTestFixtures.makeFixtureProfile(cellSize: 20, aroundRoute: aroundRoute)
+        registry.register(profile)
+        let (window, tbc) = makeHostedTabBarController()
+        guard let measured = TabBarMeasurer.measure(in: window), measured.pill != nil else {
+            throw XCTSkip("the tab bar measurer reports no pill on this runtime, so no route can be taken")
+        }
+        let perch = makePerchView(registry: registry, companionID: profile.id, slotCount: 5, slotIndex: 0)
+        perch.attach(to: tbc)
+        tbc.view.layoutIfNeeded()
+        waitUntil { perch.debugCurrentPerchState.pose == .sit }
+
+        perch.selectTab(4)
+        var rotated = false
+        let deadline = Date().addingTimeInterval(20)
+        var started = false
+        while Date() < deadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+            let pose = perch.debugCurrentPerchState.pose
+            if pose == .run { started = true }
+            if abs(perch.debugSpriteView.transform.b) > 1e-6 { rotated = true }
+            if started, pose == .sit { break }
+        }
+        spinRunLoop(seconds: 0.3)
+
+        guard let layout = TabBarMeasurer.measure(in: window), layout.centers.count == 5 else {
+            throw XCTSkip("no measured layout after the run")
+        }
+        _ = window
+        return (rotated, perch.debugSpriteView.transform, onScreenSpriteCenter(perch).x, layout.centers[4])
+    }
+
+    func testAroundRouteAnimalRotatesOnAnEndToEndChangeAndSettlesUpright() throws {
+        let result = try runEndToEnd(aroundRoute: true)
+        XCTAssertTrue(result.rotated, "the sprite turned during the run")
+        XCTAssertEqual(result.x, result.lastCenter, accuracy: 1.5, "seated on the last slot")
+        XCTAssertEqual(result.transform.b, 0, accuracy: 1e-6, "no rotation left")
+        XCTAssertEqual(result.transform.a, 1, accuracy: 1e-6)
+    }
+
+    func testAnimalWithoutAnAroundRouteNeverRotates() throws {
+        let result = try runEndToEnd(aroundRoute: false)
+        XCTAssertFalse(result.rotated, "a plain run carries no rotation")
+        XCTAssertEqual(result.x, result.lastCenter, accuracy: 1.5)
+    }
+
     // MARK: - Hit testing
 
     func testTouchOffTheSpriteReachesTheBarButTheSpriteCenterIsHit() {
