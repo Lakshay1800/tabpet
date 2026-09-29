@@ -40,7 +40,7 @@ final class DisplayLinkClockTests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(start), 1.0)
     }
 
-    func testARunningLinkProducesDtBetweenOneAndOneHundredMilliseconds() {
+    func testARunningLinkProducesDtInMilliseconds() {
         let clock = DisplayLinkClock()
         var readings: [Double] = []
         let expectation = expectation(description: "two ticks")
@@ -53,11 +53,16 @@ final class DisplayLinkClockTests: XCTestCase {
         clock.setWantsFrames(true)
         wait(for: [expectation], timeout: 2.0)
         clock.setWantsFrames(false)
+        guard readings.count >= 2 else {
+            return XCTFail("the link produced fewer than two ticks")
+        }
         let dt = readings[1] - readings[0]
         // Mutation: dropping the `* 1000` (via ClockUnits.ms) in the frame
         // time would make `now` read in seconds, putting dt far under 1ms.
         XCTAssertGreaterThan(dt, 1)
-        XCTAssertLessThan(dt, 100)
+        // A loaded machine can hold a frame for hundreds of ms. The bound only
+        // rules out a finer unit: one 120 Hz frame in microseconds is 8333.
+        XCTAssertLessThan(dt, 2000)
     }
 
     // MARK: - Deterministic state tests
