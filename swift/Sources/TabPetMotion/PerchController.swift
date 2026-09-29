@@ -87,8 +87,13 @@ private final class NoOpCancellable: MotionCancellable {
     func cancel() {}
 }
 
-/// The tab-change path of `companion-perch.tsx`, on plain stored properties
-/// and `MotionEngine` tracks. Platform neutral, tested on macOS with
+/// One phase of a finger on the tab bar, as the finger source reports it.
+package enum FingerPhase: Sendable {
+    case began, moved, ended, cancelled
+}
+
+/// The tab-change and finger paths of `companion-perch.tsx`, on plain stored
+/// properties and `MotionEngine` tracks. Platform neutral, tested on macOS with
 /// `ManualClock`; the clock and engine are injected, shared with `SpritePlayer`.
 @MainActor
 package final class PerchController {
@@ -103,9 +108,18 @@ package final class PerchController {
     /// age guard may force-complete it, so a slow animal's long traverse
     /// never freezes mid-bar with the link left awake.
     private static let runLegSettleMs: Double = 5000
+    /// Travel from the touch-down x, in pt, before a touch counts as a drag:
+    /// a tap also fires the bar's pan recognizer, began and ended on one slot.
+    private static let dragEngagePt: Double = 6
 
     package var onError: ((MotionError, String) -> Void)?
     package var onRenderState: ((PerchRenderState) -> Void)?
+    /// Whether the bar's own scrub selects on release (`.native`) or the host
+    /// does, through `onDragRelease` (`.exclusive`).
+    package var barScrub: BarScrub = .native
+    /// Called once, with the slot, for an ended drag released over another
+    /// slot in `.exclusive` mode. Never for a cancelled drag.
+    package var onDragRelease: ((Int) -> Void)?
 
     private let mounted: @MainActor @Sendable () -> Bool
     private let measure: @MainActor @Sendable () -> BarLayout?
@@ -140,6 +154,17 @@ package final class PerchController {
     private var motionGeneration = 0
     private var releaseState = PerchHandoff.initialReleaseState()
     private var releaseTimerHandle: MotionCancellable?
+    private var dragStartX: Double?
+    private var dragEngaged = false
+    /// Which hysteresis edge `chaseStep` uses.
+    private var chasing = false
+    private var lastGlassTarget: Double?
+    private var farApproach: FarApproachAnimation?
+    private var farApproachOn = false
+    private var farApproachGeneration = 0
+    /// Nonzero while one finger call runs: render states requested inside it
+    /// are folded into the single one emitted at its end.
+    private var transactionDepth = 0
     private var slotCenters: [Double]?
     private var barTop: Double?
     private var lastPill: PillFrame?
@@ -195,7 +220,7 @@ package final class PerchController {
         // Shared-engine mode: whoever owns the engine owns this slot - a
         // view running both a controller and a sprite player on one engine
         // must combine their reporting itself to route both.
-        engine.onError = { [weak self] error, label in self?.onError?(error, label) }
+        engine.onError = { [weak self] error, label in self?.handleEngineError(error, label) }
 
         // Not subscribed here: see `activateBusyTracking()`.
 
@@ -387,8 +412,11 @@ package final class PerchController {
         hasActiveFocus = false
         stopRemeasure?()
         stopRemeasure = nil
+        releaseState = PerchHandoff.reduceRelease(state: releaseState, event: .unmount).state
         releaseTimerHandle?.cancel()
         releaseTimerHandle = nil
+        stopFarApproach()
+        resetDragState()
         engine.remove(xTrack)
         engine.remove(hopTrack)
         engine.remove(seatYTrack)
@@ -402,25 +430,23 @@ package final class PerchController {
 
     // MARK: - Test-only hooks
 
-    /// Test-only: seeds the release-state machine directly, standing in for
-    /// the finger path's own 'release' event (absent this change), so a
-    /// test can exercise an arrived-by-drag catch without a live drag.
+    /// Test-only: seeds the release-state machine directly, so a test can
+    /// exercise an arrived-by-drag catch without driving a whole drag.
     package var debugReleaseState: ReleaseState {
         get { releaseState }
         set { releaseState = newValue }
     }
 
     /// Test-only: bumps the motion generation without cancelling any active
-    /// track - standing in for the finger path's own 'began' effect, absent
-    /// this change. See `PerchReentry`.
+    /// track, to stage a stale completion. See `PerchReentry`.
     @discardableResult
     package func debugBumpGeneration() -> Int {
         bumpMotion()
     }
 
     /// Test-only: sets `x` directly (a plain value, cancelling whatever was
-    /// running) - standing in for the finger path's own live drag position,
-    /// so a test can leave `x` off the seat before an arrived-by-drag catch runs.
+    /// running), so a test can leave `x` off the seat before an
+    /// arrived-by-drag catch runs.
     package func debugSetX(_ value: Double) {
         engine.set(xTrack, value)
     }
@@ -634,6 +660,356 @@ package final class PerchController {
         engine.start(seatYTrack, SpringAnimation(toValue: 0, config: springConfig(profile.catchSpring)))
     }
 
+    // MARK: - Finger
+
+    /// TS: the finger-source callback. Ignored with no active focus, on a
+    /// transient slot, under Reduce Motion, and for a non-finite began or
+    /// moved x. One call emits at most one render state, at its end.
+    package func handleFinger(x: Double, phase: FingerPhase) {
+        guard hasActiveFocus, !transientSlot, !reduceMotion() else { return }
+        switch phase {
+        case .began, .moved:
+            guard x.isFinite else { return }
+        case .ended, .cancelled:
+            break
+        }
+        transactionDepth += 1
+        var releasedOver: Int?
+        switch phase {
+        case .began:
+            fingerBegan(x: x)
+        case .moved:
+            fingerMoved(x: x)
+        case .ended:
+            releasedOver = handleDragEnd(phase: .ended)
+        case .cancelled:
+            releasedOver = handleDragEnd(phase: .cancelled)
+        }
+        transactionDepth -= 1
+        emitRenderState()
+        // After the settle is recorded: a host that selects the slot from
+        // inside this callback re-enters `focus`, which must find the pending
+        // release already in place.
+        if let releasedOver {
+            onDragRelease?(releasedOver)
+        }
+    }
+
+    /// The finger source went away or changed. A live drag chase that owns x
+    /// is cancelled and the pose rests; a release approach, an arrival catch
+    /// and the grace timer belong to the release path and are never touched.
+    package func resetFinger() {
+        let owned = dragEngaged || chasing
+        if owned {
+            stopFarApproach()
+            engine.cancel(xTrack)
+            cancelRoute()
+        }
+        resetDragState()
+        stopFarApproach()
+        if owned, mounted() {
+            rest()
+        }
+    }
+
+    private func resetDragState() {
+        dragStartX = nil
+        dragEngaged = false
+        chasing = false
+        lastGlassTarget = nil
+    }
+
+    private func fingerBegan(x: Double) {
+        dragStartX = x
+        dragEngaged = false
+        chasing = false
+        stopFarApproach()
+        // The touch may turn out to be a tap: while a release is pending,
+        // bumping the generation would strand the animal over the wrong slot
+        // in the run pose if the touch never engages.
+        let result = PerchHandoff.reduceRelease(state: releaseState, event: .began)
+        releaseState = result.state
+        if result.effect != .holdGeneration {
+            bumpMotion()
+        }
+        // A bar drag mid-route must not leave the animal rotated or under the pill.
+        engine.set(rotationTrack, 0)
+        cancelRoute()
+        if seatYTrack.currentValue > bottomExtra {
+            engine.start(seatYTrack, SpringAnimation(toValue: bottomExtra, config: springConfig(profile.trackSpring)))
+        }
+    }
+
+    private func fingerMoved(x: Double) {
+        let glassTarget = PerchGeometry.glassTargetX(fingerX: x, screenWidth: screenWidth)
+        var startedFarApproach = false
+        if !dragEngaged {
+            let startX = dragStartX ?? x
+            guard abs(x - startX) > Self.dragEngagePt else { return }
+            dragEngaged = true
+            startedFarApproach = beginFarApproachIfNeeded(startX: startX, glassAtEngage: glassTarget)
+            // A real drag is engaging: any release it was waiting on no longer applies.
+            let result = PerchHandoff.reduceRelease(state: releaseState, event: .engage)
+            releaseState = result.state
+            if result.effect == .clearTimer {
+                releaseTimerHandle?.cancel()
+                releaseTimerHandle = nil
+            }
+        }
+        lastGlassTarget = glassTarget
+        if bottomExtra > 0 {
+            // The drag happens on the glass: drop from a raised seat to bar level.
+            engine.start(seatYTrack, SpringAnimation(toValue: bottomExtra, config: springConfig(profile.trackSpring)))
+        }
+        // The glass position, not the trailing animal, is what the next screen hands off from.
+        handoffStore.writePerchHandoff(next: PerchHandoff.applyDragTrack(handoff: handoffStore.readPerchHandoff(), glassTarget: glassTarget))
+
+        if startedFarApproach || trackFarApproachSample(glassTarget) {
+            return
+        }
+
+        // Leash follower: inside the trail the animal holds its ground, and
+        // it only ever runs toward the glass.
+        let step = PerchGeometry.chaseStep(glassX: glassTarget, currentX: xTrack.currentValue, currentFacing: facing, chasing: chasing)
+        if step.target == nil {
+            chasing = false
+            stopFarApproach()
+            // Soft brake: a spring on x cancels the in-flight one, else a running
+            // commit chase keeps sliding under the resting sprite.
+            engine.start(xTrack, SpringAnimation(toValue: xTrack.currentValue, config: springConfig(profile.trackSpring)))
+            rest()
+            return
+        }
+        chasing = true
+        if step.facing != facing {
+            setFacing(step.facing)
+        }
+        motionSpring = profile.trackSpring
+        setPose(.run)
+        // An abrupt stop has no further sample to stand the animal down, so
+        // the last track spring's completion rests it at the finger.
+        let generation = bumpMotion()
+        let target = PerchGeometry.chaseTargetX(glassX: glassTarget, direction: step.facing, screenWidth: screenWidth)
+        engine.start(xTrack, SpringAnimation(toValue: target, config: springConfig(profile.trackSpring))) { [weak self] finished in
+            guard finished else { return }
+            self?.arrive(generation: generation)
+        }
+    }
+
+    // MARK: - Far approach
+
+    /// Far is judged from where the finger came down, not from this sample: a
+    /// fast flick that starts on the animal keeps the spring follower. The
+    /// sample that starts an approach does nothing else.
+    private func beginFarApproachIfNeeded(startX: Double, glassAtEngage: Double) -> Bool {
+        let liveX = xTrack.currentValue
+        guard PerchHandoff.isFarGrab(gapPt: PerchGeometry.glassTargetX(fingerX: startX, screenWidth: screenWidth) - liveX) else {
+            return false
+        }
+        // The engage sample goes through the same leash test as every later
+        // one: a landing spot behind the animal falls through to the leash.
+        guard case .track(let target, let planFacing) = PerchHandoff.planFarSample(glassX: glassAtEngage, currentX: liveX, screenWidth: screenWidth) else {
+            return false
+        }
+        // The approach, not a leftover spring, owns x from here.
+        engine.cancel(xTrack)
+        let generation = bumpMotion()
+        farApproachGeneration = generation
+        if planFacing != facing {
+            setFacing(planFacing)
+        }
+        motionSpring = profile.trackSpring
+        setPose(.run)
+        let speed = sanitizedRunSpeed
+        let animation = FarApproachAnimation(toValue: target, speedPtS: speed)
+        farApproach = animation
+        farApproachOn = true
+        // A whole bar at this animal's own speed, plus a settle allowance, so a
+        // slow animal is never cut short by the engine's default age guard.
+        let ceilingMs = (screenWidth / speed) * 1000 + Self.runLegSettleMs
+        engine.start(xTrack, animation, maxAgeMs: ceilingMs.isFinite ? ceilingMs : nil) { [weak self] _ in
+            self?.farApproachEnded(generation: generation)
+        }
+        return true
+    }
+
+    /// The approach's one end report, whether it arrived or the engine's age
+    /// guard cut it: acts only while the approach is still ours and belongs to
+    /// the current motion, so a still finger after a far grab rests.
+    private func farApproachEnded(generation: Int) {
+        guard farApproachOn, generation == motionGeneration else { return }
+        stopFarApproach()
+        arrive(generation: generation)
+    }
+
+    /// During an approach only the target moves; the animation steps x.
+    private func trackFarApproachSample(_ glassTarget: Double) -> Bool {
+        guard farApproachOn, let animation = farApproach else { return false }
+        let plan = PerchHandoff.planFarSample(glassX: glassTarget, currentX: xTrack.currentValue, screenWidth: screenWidth)
+        switch plan {
+        case .end:
+            let generation = farApproachGeneration
+            stopFarApproach()
+            arrive(generation: generation)
+        case .track(let target, let planFacing):
+            if planFacing != facing {
+                setFacing(planFacing)
+            }
+            animation.retarget(target)
+        }
+        return true
+    }
+
+    /// Flag off first, so the cancel's own completion is ignored. Touches x
+    /// only when an approach was running: most callers run it defensively.
+    private func stopFarApproach() {
+        let wasOn = farApproachOn
+        farApproachOn = false
+        farApproach = nil
+        if wasOn {
+            engine.cancel(xTrack)
+        }
+    }
+
+    // MARK: - Release
+
+    /// TS: `handleDragEnd`. Returns the slot `onDragRelease` is owed, if any.
+    private func handleDragEnd(phase: DragPhase) -> Int? {
+        guard dragEngaged else {
+            // A tap, not a drag: leave the handoff alone, let the native
+            // selection drive the commit chase.
+            dragStartX = nil
+            lastGlassTarget = nil
+            return nil
+        }
+        dragEngaged = false
+        chasing = false
+        stopFarApproach()
+        dragStartX = nil
+        let releaseX = lastGlassTarget
+            ?? PerchGeometry.tabCenterX(tab: anchor.slotIndex, screenWidth: screenWidth, slotCount: anchor.slotCount, slotCenters: slotCenters)
+        lastGlassTarget = nil
+        handoffStore.writePerchHandoff(
+            next: PerchHandoff.applyDragRelease(handoff: handoffStore.readPerchHandoff(), tab: anchor.slotIndex, releaseX: releaseX, bottomExtra: bottomExtra)
+        )
+        let releaseSlot = PerchGeometry.nearestSlot(
+            x: releaseX + PerchGeometry.PERCH_SIZE / 2,
+            screenWidth: screenWidth,
+            slotCount: anchor.slotCount,
+            slotCenters: slotCenters
+        )
+        let home = PerchGeometry.tabCenterX(tab: anchor.slotIndex, screenWidth: screenWidth, slotCount: anchor.slotCount, slotCenters: slotCenters)
+        // Whether the released-over slot gets selected is a property of the
+        // bar, not of who supplies the touches. A pill the host passed for its
+        // own bar does not count.
+        let nativePill = anchor.pill == nil && measure()?.pill != nil
+        let plan = PerchHandoff.planDragRelease(
+            phase: phase,
+            releaseSlot: releaseSlot,
+            currentSlot: anchor.slotIndex,
+            selectsOnRelease: PerchHandoff.selectsOnRelease(barScrub: barScrub, hasOnDragRelease: onDragRelease != nil, nativePill: nativePill)
+        )
+        settleAfterRelease(plan, home: home)
+        // A cancelled drag must not navigate: only an ended one reports.
+        guard phase == .ended, barScrub == .exclusive, releaseSlot != anchor.slotIndex else { return nil }
+        return releaseSlot
+    }
+
+    /// TS: `settleAfterRelease`. Home at once, or approach the awaited slot
+    /// and arm the grace timer that falls back home if no selection lands.
+    private func settleAfterRelease(_ plan: DragReleasePlan, home: Double) {
+        let generation = bumpMotion()
+        let result = PerchHandoff.reduceRelease(
+            state: releaseState,
+            event: .release(plan: plan, fromSlot: anchor.slotIndex, generation: generation)
+        )
+        releaseState = result.state
+        if result.effect == .goHome {
+            approach(home, generation: generation)
+            engine.start(seatYTrack, SpringAnimation(toValue: 0, config: springConfig(profile.catchSpring)))
+            return
+        }
+        guard result.effect == .await, let pending = result.state.pending else { return }
+        approach(
+            PerchGeometry.tabCenterX(tab: pending.slot, screenWidth: screenWidth, slotCount: anchor.slotCount, slotCenters: slotCenters),
+            generation: generation
+        )
+        // seatY stays at bar level: the next focus plans the rise onto its own raised seat.
+        releaseTimerHandle?.cancel()
+        releaseTimerHandle = clock.after(milliseconds: PerchHandoff.RELEASE_GRACE_MS) { [weak self] in
+            self?.releaseGraceElapsed()
+        }
+    }
+
+    private func releaseGraceElapsed() {
+        let result = PerchHandoff.reduceRelease(
+            state: releaseState,
+            event: .timer(mounted: mounted(), generation: motionGeneration, renderedSlot: anchor.slotIndex)
+        )
+        releaseState = result.state
+        releaseTimerHandle = nil
+        if result.effect == .goHome {
+            goHome()
+        }
+        emitRenderState()
+    }
+
+    /// Reads the anchor, width and centers at call time: the grace timer may
+    /// have been armed long before it fires.
+    private func goHome() {
+        let home = PerchGeometry.tabCenterX(tab: anchor.slotIndex, screenWidth: screenWidth, slotCount: anchor.slotCount, slotCenters: slotCenters)
+        let generation = bumpMotion()
+        approach(home, generation: generation)
+        engine.start(seatYTrack, SpringAnimation(toValue: 0, config: springConfig(profile.catchSpring)))
+    }
+
+    /// TS: `approach`. Distance-aware, used by every release path: a spring
+    /// under one glass width, a constant-speed run otherwise. No reaction
+    /// pause and no hop: the animal is already moving.
+    private func approach(_ targetX: Double, generation: Int) {
+        let liveX = xTrack.currentValue
+        let direction = PerchGeometry.travelFacing(targetX: targetX, currentX: liveX, currentFacing: facing)
+        if direction != facing {
+            setFacing(direction)
+        }
+        let completion: (Bool) -> Void = { [weak self] finished in
+            guard finished else { return }
+            self?.arrive(generation: generation)
+        }
+        switch PerchHandoff.planApproach(distancePt: targetX - liveX, speedPtS: sanitizedRunSpeed) {
+        case .spring:
+            engine.start(xTrack, SpringAnimation(toValue: targetX, config: springConfig(profile.catchSpring)), completion: completion)
+        case .run(let durationMs):
+            setPose(.run)
+            let runLeg = SequenceAnimation(
+                TimingAnimation(toValue: targetX, config: TimingConfig(duration: durationMs, easing: { Easing.linear($0) })),
+                SpringAnimation(toValue: targetX, config: springConfig(profile.catchSpring))
+            )
+            engine.start(xTrack, runLeg, maxAgeMs: durationMs + Self.runLegSettleMs, completion: completion)
+        }
+    }
+
+    /// A non-finite value on a perch track while the finger owns x: recover
+    /// the way a mid-drag throw does, so nothing is left wedged. The error
+    /// still reaches `onError`.
+    private func handleEngineError(_ error: MotionError, _ label: String) {
+        onError?(error, label)
+        guard label.hasPrefix("perch."), dragEngaged || chasing || farApproachOn else { return }
+        resetDragState()
+        stopFarApproach()
+        let result = PerchHandoff.reduceRelease(state: releaseState, event: .abort)
+        releaseState = result.state
+        if result.effect == .clearTimer {
+            releaseTimerHandle?.cancel()
+            releaseTimerHandle = nil
+        }
+        engine.cancel(xTrack)
+        cancelRoute()
+        if mounted() {
+            rest()
+        }
+    }
+
     // MARK: - Blur
 
     /// TS: the focus effect's own cleanup. A route cut off on its curve or
@@ -653,7 +1029,11 @@ package final class PerchController {
         stageInterrupt()
         let liveSeat = PerchHandoff.liveLastSeat(bottomExtra: bottomExtra, seatY: interruptedRoute == nil ? seatYTrack.currentValue : 0)
 
+        // Flag off before x is cancelled, so the approach's own cancel
+        // completion cannot rest a pose this blur is about to set anyway.
+        stopFarApproach()
         engine.cancel(xTrack)
+        resetDragState()
         cancelRoute()
         engine.cancel(rotationTrack)
         bumpMotion()
@@ -700,9 +1080,12 @@ package final class PerchController {
 
     private func handleBusyEdge(_ next: Bool) {
         busy = next
-        // TS also gates this on the finger leash's own state, absent here
-        // (no finger path), so nothing blocks it; the flip below only ever
-        // touches sit<->idle, a no-op mid-chase (pose 'run') by construction.
+        // The idle sheet is the busy presentation: it never interrupts a
+        // run or a drag, so the flag is stored and the pose left alone.
+        if dragEngaged || chasing {
+            emitRenderState()
+            return
+        }
         if next, pose == .sit {
             setPose(.idle)
         } else if !next, pose == .idle {
@@ -777,7 +1160,7 @@ package final class PerchController {
 
     /// TS: `retryMeasure`'s own `onMeasured` body. Only corrects the seat
     /// while nothing owns motion for this same generation and this focus
-    /// did not itself start a run-chase, which must never be yanked.
+    /// did not itself start a run-chase or a drag chase, which must never be yanked.
     private func applyRemeasure(_ layout: BarLayout, generation: Int, kindAtFocus: FocusKind, commitsHandoff: Bool) {
         slotCenters = layout.centers
         if let barTopFound = measuredBarTop(for: anchor) {
@@ -786,10 +1169,11 @@ package final class PerchController {
         let pillFound = measuredPill(for: anchor)
         lastPill = pillFound ?? lastPill
 
-        let seated = motionGeneration == generation && kindAtFocus != .runChase && activeRoute == nil
+        let seated = motionGeneration == generation && kindAtFocus != .runChase && !chasing && !dragEngaged && activeRoute == nil
         guard seated else { return }
 
         let seat = PerchGeometry.tabCenterX(tab: anchor.slotIndex, screenWidth: screenWidth, slotCount: anchor.slotCount, slotCenters: slotCenters)
+        stopFarApproach()
         engine.set(xTrack, seat)
         if commitsHandoff {
             handoffStore.writePerchHandoff(next: PerchHandoffState(lastTab: anchor.slotIndex, lastX: nil, lastSeat: bottomExtra))
@@ -846,6 +1230,7 @@ package final class PerchController {
     }
 
     private func emitRenderState() {
+        guard transactionDepth == 0 else { return }
         onRenderState?(buildState())
     }
 
