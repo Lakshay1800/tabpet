@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Added: a Swift package for a native iOS app, from the same repository URL. Products: `TabPetUIKit` for the views, `TabPetCore` for the registry and profiles, one `TabPetAnimal<Name>` product per animal, and `TabPetAnimals` for all six. An app that links one animal ships only that animal's sheets.
+- Added: `CompanionPerchView` for UIKit and `CompanionPerch` for SwiftUI, the animal on the tab bar. Also `CompanionSpriteView` and `CompanionSprite`, the animal on its own.
+- Added: in Swift, the animal chases a finger along the bar, with `barScrub`, `onDragRelease` and `fingerSource`, and the raccoon and the squirrel take the route around the pill.
+- Added: a demo app in `apps/swift-demo`, in UIKit and SwiftUI, with launch arguments for repeatable recordings.
+- Docs: a Swift guide in `docs/swift.md` and a release checklist in `docs/releasing.md`.
+
 ## 0.2.3
 
 - Fixed: the squirrel no longer shows a light patch under its feet on a dark tab bar. Its three sheets lose the painted ground shadow, the white matte edge and the background sealed between the legs. The seat is unchanged.

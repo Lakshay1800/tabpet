@@ -44,7 +44,7 @@ if [ -z "$top" ] || [ "$(cd "$top" && pwd -P)" != "$(pwd -P)" ]; then
   exit 2
 fi
 set +e
-matches="$(git grep --untracked -n -i -E -e "$PATTERN" -- . ':(exclude)tools/check-no-private-strings.sh' ':(exclude)LICENSE' ':(exclude)packages/tabpet/LICENSE' ':(exclude)bun.lock' ':(exclude)packages/tabpet/package.json' ':(exclude)packages/tabpet/README.md' ':(exclude)README.md' ':(exclude)apps/example/README.md' ':(exclude)CHANGELOG.md' 2>/dev/null)"
+matches="$(git grep --untracked -n -i -E -e "$PATTERN" -- . ':(exclude)tools/check-no-private-strings.sh' ':(exclude)LICENSE' ':(exclude)packages/tabpet/LICENSE' ':(exclude)bun.lock' ':(exclude)packages/tabpet/package.json' ':(exclude)packages/tabpet/README.md' ':(exclude)README.md' ':(exclude)apps/example/README.md' ':(exclude)CHANGELOG.md' ':(exclude)docs/swift.md' ':(exclude)docs/releasing.md' 2>/dev/null)"
 rc=$?
 set -e
 if [ "$rc" -eq 0 ]; then

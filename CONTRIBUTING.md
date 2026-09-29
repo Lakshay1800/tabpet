@@ -11,14 +11,19 @@
 
 - `packages/tabpet/src/` - the library (TypeScript, ESM)
 - `apps/example/` - demo app using the library
+- `Package.swift`, `swift/Sources/`, `swift/Tests/` - the Swift package: `TabPetCore`, `TabPetMotion`, `TabPetUIKit`, one `TabPetAnimal<Name>` target per animal, and the `TabPetAnimals` umbrella
+- `apps/swift-demo/` - demo app for the Swift package (see Demo App below)
 - `packages/tabpet/ios/` - the Swift module (UITabBar pan events and bar layout); `packages/tabpet/src/native/` wraps it
 - `tools/sprite-sheet.sh` - sprite-sheet slicing pipeline (`--from/--to` window, `--flip`)
 - `packages/tabpet/assets/` - sprite sheets for the six shipped animals (PNG)
 - `assets/` - `LICENSE-ART.md` only
+- `docs/swift.md` and `docs/releasing.md` - the Swift guide and the release checklist
 
 ## Tests
 
 Pure unit tests use `node:assert` (no external framework). Run via `bun run test`, which discovers every `*.test.ts` under `packages/` (see `scripts/run-tests.mjs`) and runs each under `tsx` on Node (not `bun test`).
+
+`swift build` and `swift test` from the repo root run the Swift package's tests on macOS. The `TabPetUIKit` tests need an iOS simulator: `bash tools/swift-sim-test.sh [device-id]`.
 
 Adding an animal means editing `sheets.test.ts` - add the new ID to its ANIMALS list.
 
@@ -28,7 +33,7 @@ The finger chase and the bar's own scrub are simulator-blind. Sign off on a devi
 
 ## Demo App
 
-`apps/swift-demo/TabPetDemo.xcodeproj` is a plain Xcode project (generated with [XcodeGen](https://github.com/yonaskolb/XcodeGen) from `apps/swift-demo/project.yml`, which is the file to hand-edit; regenerate the project with `xcodegen generate` from that directory after any change) that depends on the package at the repository root by a relative path. XcodeGen writes the name of the repository's directory into the project, so regenerate from a checkout whose directory is named `tabpet`. It has one shared scheme, `TabPetDemo`, and no signing team - it builds unsigned, for the simulator only. Opening or building the committed project needs Xcode 16 or later. Build it with `tools/swift-demo-build.sh [device-id]`, which runs in the same CI job as the simulator tests and, by default, reuses that job's own derived data rather than building the package cold a second time. `xcuserdata/` and build output are gitignored; the project file and its shared scheme are committed.
+`apps/swift-demo/TabPetDemo.xcodeproj` is a plain Xcode project (generated with [XcodeGen](https://github.com/yonaskolb/XcodeGen) from `apps/swift-demo/project.yml`, which is the file to hand-edit; regenerate the project with `xcodegen generate` from that directory after any change) that depends on the package at the repository root by a relative path. XcodeGen writes the name of the repository's directory into the project, so regenerate from a checkout whose directory is named `tabpet`. It has one shared scheme, `TabPetDemo`, and no signing team - it builds unsigned, for the simulator only. Opening or building the committed project needs Xcode 16 or later. Build it with `tools/swift-demo-build.sh [device-id]`, which runs in the same CI job as the simulator tests and, by default, reuses that job's own derived data rather than building the package cold a second time. `xcuserdata/` and build output are gitignored; the project file and its shared scheme are committed. Its launch arguments and how to run it on a phone are in `apps/swift-demo/README.md`.
 
 ## Motion Invariants
 

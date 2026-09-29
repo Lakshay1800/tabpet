@@ -104,6 +104,26 @@ That is the whole integration. The perch lives above the navigator, so a tab cha
 
 Want only one animal? Import from `react-native-tabpet/bare` and register the one you ship. Want a picker, a busy state, or a custom tab bar? See the [integration guide](docs/integration.md).
 
+## Swift
+
+Not on Expo? The same animal comes as a Swift package, for a UIKit or SwiftUI app. Add `https://github.com/Lakshay1800/tabpet` in Xcode, then `TabPetUIKit` and one product per animal, or `TabPetAnimals` for all six. An app that links one animal ships one animal's art. Call `TabPetAnimalPanda.register()` once at launch, then lay the perch over your tabs:
+
+```swift
+import SwiftUI
+import TabPetUIKit
+
+struct RootView: View {
+    @State private var tab = 0
+
+    var body: some View {
+        TabView(selection: $tab) { /* your tabs */ }
+            .overlay { CompanionPerch(selection: tab, slotCount: 3).ignoresSafeArea() }
+    }
+}
+```
+
+You tell it which tab is selected, and it does the rest. The [Swift guide](docs/swift.md) covers the UIKit view, the drag, and your own animal.
+
 ## The animals
 
 | animal   | temperament                                                        |
