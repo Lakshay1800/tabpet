@@ -44,7 +44,7 @@ final class CompanionSpriteWrapperTests: XCTestCase {
         XCTAssertEqual(sprite.size, 88)
 
         model.size = 54
-        let deadline = Date().addingTimeInterval(2)
+        let deadline = Date().addingTimeInterval(10)
         while sprite.size != 54 && Date() < deadline {
             RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
         }

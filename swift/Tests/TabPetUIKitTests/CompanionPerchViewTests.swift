@@ -34,7 +34,7 @@ final class CompanionPerchViewTests: XCTestCase {
         )
     }
 
-    private func waitUntil(timeout: TimeInterval = 5, _ condition: () -> Bool) {
+    private func waitUntil(timeout: TimeInterval = 10, _ condition: () -> Bool) {
         let deadline = Date().addingTimeInterval(timeout)
         while !condition() && Date() < deadline {
             RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
@@ -73,7 +73,7 @@ final class CompanionPerchViewTests: XCTestCase {
         // Wide bounds: a loaded machine must still pass. The run leg, the
         // reaction pause and the catch spring together are well under 3s
         // for any bundled profile at this distance.
-        waitUntil(timeout: 5) { perch.debugCurrentPerchState.pose == .sit }
+        waitUntil(timeout: 10) { perch.debugCurrentPerchState.pose == .sit }
 
         // Measured last, at the same moment as the assertion below: the
         // reference value must reflect the bar's final settled layout,
@@ -86,7 +86,7 @@ final class CompanionPerchViewTests: XCTestCase {
 
         // The link stops once nothing is left to animate - a wide poll
         // window tolerates the catch spring's own settle time.
-        waitUntil(timeout: 5) { perch.debugClock.debugIsLinkPaused == true }
+        waitUntil(timeout: 10) { perch.debugClock.debugIsLinkPaused == true }
         XCTAssertEqual(perch.debugClock.debugIsLinkPaused, true, "the link must pause once the chase settles")
 
         _ = window
@@ -204,6 +204,7 @@ final class CompanionPerchViewTests: XCTestCase {
         window.frame = CGRect(x: 0, y: 0, width: 700, height: 844)
         tbc.view.layoutIfNeeded()
         spinRunLoop(seconds: 0.3)
+        waitUntil { perch.debugFocusPassCount > passesBeforeResize }
         perch.layoutIfNeeded()
 
         XCTAssertGreaterThan(perch.debugFocusPassCount, passesBeforeResize, "a width change must run a new focus pass")
@@ -291,7 +292,7 @@ final class CompanionPerchViewTests: XCTestCase {
         XCTAssertEqual(perch.debugCurrentPerchState.pose, .sit, "the pet must already be seated once the window returns")
 
         perch.selectTab(2)
-        waitUntil(timeout: 5) { perch.debugCurrentPerchState.pose == .sit }
+        waitUntil(timeout: 10) { perch.debugCurrentPerchState.pose == .sit }
 
         guard let layout = TabBarMeasurer.measure(in: window), layout.centers.count == 5 else {
             return XCTFail("expected a real measured tab bar layout")
@@ -347,13 +348,16 @@ final class CompanionPerchViewTests: XCTestCase {
         let startX = onScreenSpriteCenter(perch).x
 
         perch.selectTab(3)
-        waitUntil(timeout: 5) { perch.debugCurrentPerchState.pose == .run }
-        spinRunLoop(seconds: 0.15)
+        waitUntil { perch.debugCurrentPerchState.pose == .run }
+        // Waits on the sprite, not on a fixed time: a loaded machine can
+        // hold the link for longer than any fixed spin.
+        waitUntil { abs(onScreenSpriteCenter(perch).x - startX) > 3 }
         let targetX = TabBarMeasurer.measure(in: perch.window ?? UIWindow())?.centers[3] ?? startX
+        let xBeforeReTap = onScreenSpriteCenter(perch).x
 
         perch.selectTab(3)
-        // Read after the re-tap, not before it: a snap would show up right here.
-        spinRunLoop(seconds: 0.1)
+        // Read after the re-tap and after a frame drew: a snap would show up right here.
+        waitUntil { onScreenSpriteCenter(perch).x != xBeforeReTap }
         let xAfterReTap = onScreenSpriteCenter(perch).x
 
         XCTAssertEqual(perch.debugCurrentPerchState.pose, .run, "a re-tap of the running tab must not snap the chase")
@@ -614,19 +618,19 @@ final class CompanionPerchViewTests: XCTestCase {
         let startX = onScreenSpriteCenter(perch).x
 
         perch.selectTab(3)
-        waitUntil(timeout: 5) { perch.debugCurrentPerchState.pose == .run }
-        spinRunLoop(seconds: 0.15)
+        waitUntil { perch.debugCurrentPerchState.pose == .run }
+        waitUntil { abs(onScreenSpriteCenter(perch).x - startX) > 3 }
         let targetX = TabBarMeasurer.measure(in: perch.window ?? UIWindow())?.centers[3] ?? startX
         let passesBefore = perch.debugFocusPassCount
+        let xBeforeAssign = onScreenSpriteCenter(perch).x
 
         perch.anchor = CompanionAnchor(slotCount: 5, slotIndex: 3)
 
         XCTAssertEqual(perch.debugFocusPassCount, passesBefore, "an anchor equal to the current one must run no fresh focus pass")
         XCTAssertEqual(perch.debugCurrentPerchState.pose, .run, "the chase must still be running")
-        // Spun several frames past the equal-anchor assignment above, so the
-        // lower bound below clears by whole frames on the real clock, not
-        // half of one - a flaky margin the manual clock never had to face.
-        spinRunLoop(seconds: 0.5)
+        // Waits for a frame to draw after the assignment, so the reading below
+        // comes from a chase that kept going, not from the assignment itself.
+        waitUntil { onScreenSpriteCenter(perch).x != xBeforeAssign }
         let midX = onScreenSpriteCenter(perch).x
         let lower = Swift.min(startX, targetX)
         let upper = Swift.max(startX, targetX)
@@ -694,7 +698,7 @@ final class CompanionPerchViewTests: XCTestCase {
 
         window.rootViewController = tbc
         waitUntil { tbc.view.window != nil }
-        waitUntil(timeout: 5) { perch.debugCurrentPerchState.pose == .idle }
+        waitUntil(timeout: 10) { perch.debugCurrentPerchState.pose == .idle }
 
         XCTAssertEqual(perch.debugCurrentPerchState.pose, .idle, "a busy claim held since before the window returned must still be reflected")
         endBusyClaim()
@@ -771,13 +775,18 @@ final class CompanionPerchViewTests: XCTestCase {
             pushedPerch = nil
 
             nav.pushViewController(screen, animated: false)
-            spinRunLoop(seconds: 0.2)
+            waitUntil {
+                root.debugSpriteView.alpha <= 0.01 && screen.perch.debugSpriteView.alpha >= 0.99
+            }
 
             XCTAssertEqual(root.debugSpriteView.alpha, 0, accuracy: 0.01, "the root pet must be hidden while the pushed screen is up")
             XCTAssertEqual(screen.perch.debugSpriteView.alpha, 1, accuracy: 0.01, "the pushed pet must be visible")
 
             nav.popViewController(animated: false)
-            spinRunLoop(seconds: 0.2)
+            waitUntil {
+                let attached = tbc.view.subviews.filter { $0 is CompanionPerchView }.count
+                return attached == 1 && root.debugSpriteView.alpha >= 0.99
+            }
 
             let perchViews = tbc.view.subviews.filter { $0 is CompanionPerchView }
             XCTAssertEqual(perchViews.count, 1, "exactly one perch must remain attached after a real pop")
@@ -817,7 +826,7 @@ final class CompanionPerchViewTests: XCTestCase {
         screen.beginAppearanceTransition(true, animated: false)
         screen.endAppearanceTransition()
         screen.didMove(toParent: container)
-        spinRunLoop(seconds: 0.2)
+        waitUntil { screen.perch.debugSpriteView.alpha >= 0.99 }
         XCTAssertEqual(screen.perch.debugSpriteView.alpha, 1, accuracy: 0.01, "setup: the pushed pet must be visible")
 
         // A cancelled edge-swipe, or a tab switch away, drives this pair

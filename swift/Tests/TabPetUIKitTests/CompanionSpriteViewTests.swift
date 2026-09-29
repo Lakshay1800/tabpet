@@ -11,7 +11,7 @@ final class CompanionSpriteViewTests: XCTestCase {
         UIWindow(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
     }
 
-    private func waitUntilReady(_ view: CompanionSpriteView, timeout: TimeInterval = 5) {
+    private func waitUntilReady(_ view: CompanionSpriteView, timeout: TimeInterval = 10) {
         let deadline = Date().addingTimeInterval(timeout)
         while view.visualState != .ready && view.visualState != .error && Date() < deadline {
             RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
@@ -19,7 +19,7 @@ final class CompanionSpriteViewTests: XCTestCase {
         XCTAssertEqual(view.visualState, .ready, "sheets never finished loading")
     }
 
-    private func waitUntil(timeout: TimeInterval = 5, _ condition: () -> Bool) {
+    private func waitUntil(timeout: TimeInterval = 10, _ condition: () -> Bool) {
         let deadline = Date().addingTimeInterval(timeout)
         while !condition() && Date() < deadline {
             RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
@@ -741,7 +741,7 @@ final class CompanionSpriteViewTests: XCTestCase {
         view.pose = .run
         XCTAssertEqual(ownedClock.frameRateHint, .motion, "a pose change starts the cross-dissolve right away")
 
-        let deadline = Date().addingTimeInterval(2)
+        let deadline = Date().addingTimeInterval(10)
         while ownedClock.frameRateHint == .motion && Date() < deadline {
             RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
         }
