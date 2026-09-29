@@ -55,7 +55,7 @@ enum SpriteTestFixtures {
     /// One companion profile whose three sheets are freshly generated,
     /// grid-valid PNGs at a tiny cell size - fast to decode, real enough
     /// to exercise the whole `CompanionSpriteView` pipeline end to end.
-    static func makeFixtureProfile(id: String = "fixture-\(UUID().uuidString)", cellSize: Int = 20, runSpeed: Double? = nil) -> CompanionProfile {
+    static func makeFixtureProfile(id: String = "fixture-\(UUID().uuidString)", cellSize: Int = 20, runSpeed: Double? = nil, aroundRoute: Bool = false) -> CompanionProfile {
         let idleGrid = CompanionProfile.IDLE_SHEET_GRID
         let runGrid = CompanionProfile.RUN_SHEET_GRID
         let idleURL = makeSolidColorPNG(pixelWidth: cellSize * idleGrid.cols, pixelHeight: cellSize * idleGrid.rows)
@@ -71,7 +71,7 @@ enum SpriteTestFixtures {
             hopHeight: -6,
             flightLift: 0,
             scale: 1,
-            aroundRoute: false,
+            aroundRoute: aroundRoute,
             runSpeed: runSpeed,
             sheets: CompanionSheets(idle: idleURL, run: runURL, sit: sitURL)
         )

@@ -17,7 +17,7 @@ package struct BarLayout: Equatable, Sendable {
 
 /// Host-supplied overrides, mirroring `CompanionAnchor` (TS). `nil` means
 /// "not supplied, fall back to `measure()`", matching TS's `undefined`;
-/// `pill` has no separate "explicitly no pill" state (routes are out of scope here).
+/// `pill` has no separate "explicitly no pill" state.
 package struct PerchAnchor: Equatable, Sendable {
     package var slotCount: Int
     package var slotIndex: Int
@@ -128,6 +128,7 @@ package final class PerchController {
     private let flightLiftTrack: MotionTrack
     private let rotationTrack: MotionTrack
     private let visibleTrack: MotionTrack
+    private let routeProgressTrack: MotionTrack
 
     private var pose: PupPose
     private var facing: Facing
@@ -145,6 +146,8 @@ package final class PerchController {
     private var hasActiveFocus = false
     private var stopRemeasure: (@MainActor @Sendable () -> Void)?
     private var unsubscribeBusy: (@MainActor @Sendable () -> Void)?
+    private var activeRoute: ActiveRoute?
+    private var interruptedRoute: InterruptedRoute?
 
     package init(
         profile: CompanionProfile,
@@ -182,6 +185,7 @@ package final class PerchController {
         self.flightLiftTrack = engine.makeTrack(label: "perch.flightLift", initialValue: 0)
         self.rotationTrack = engine.makeTrack(label: "perch.rotation", initialValue: 0)
         self.visibleTrack = engine.makeTrack(label: "perch.visible", initialValue: 1)
+        self.routeProgressTrack = engine.makeTrack(label: "perch.routeProgress", initialValue: 0)
 
         self.motionSpring = profile.trackSpring
         self.pose = .sit
@@ -248,8 +252,10 @@ package final class PerchController {
 
     /// Call once, right after the shared engine's owner ticks it - re-reads
     /// the continuously-animating tracks and publishes a fresh commit,
-    /// expected every tick something is moving.
+    /// expected every tick something is moving. While a route is active,
+    /// x, seatY and rotation all come from one pose call here.
     package func renderTick() {
+        applyRoutePose()
         emitRenderState()
     }
 
@@ -284,6 +290,11 @@ package final class PerchController {
         guard isFocused else { return }
         hasActiveFocus = true
 
+        // Consumed at most once per focus, and only by a focused pass, so an
+        // interrupt survives an unfocused pass in between.
+        let interrupted = interruptedRoute
+        interruptedRoute = nil
+
         let reduceMotionOn = reduceMotion()
         let measuredCentersNow = measuredCenters(for: anchor)
         slotCenters = measuredCentersNow ?? slotCenters
@@ -303,12 +314,13 @@ package final class PerchController {
             reduceMotion: reduceMotionOn,
             slotCount: anchor.slotCount,
             slotCenters: slotCenters,
-            holdRun: false
+            holdRun: interrupted != nil
         )
 
         let generation = bumpMotion()
         let liveXAtFocusStart = xTrack.currentValue
 
+        cancelRoute()
         engine.cancel(rotationTrack)
         snapVerticalToSeat(PerchHandoff.planStartSeatY(kind: plan.kind, runSeatY: plan.runSeatY, fromSeatY: plan.fromSeatY))
         engine.cancel(xTrack)
@@ -316,7 +328,18 @@ package final class PerchController {
 
         switch plan.kind {
         case .runChase:
-            switch routeChoice() {
+            let choice = routeChoice(
+                interrupted: interrupted,
+                pill: pillNow,
+                plan: plan,
+                fromSlot: PerchHandoff.focusFromSlot(handoffLastTab: handoffState.lastTab, arrivedByDrag: arrivedByDrag, focusedSlot: anchor.slotIndex),
+                reduceMotionOn: reduceMotionOn
+            )
+            switch choice {
+            case .resumed(let route):
+                runResumedRoute(route, targetX: plan.targetX, generation: generation)
+            case .around(let path):
+                runAroundRoute(path, targetX: plan.targetX, generation: generation)
             case .plain:
                 runPlainChase(fromX: plan.fromX, targetX: plan.targetX, runSeatY: plan.runSeatY, generation: generation, arrivedByDrag: arrivedByDrag)
             }
@@ -372,6 +395,9 @@ package final class PerchController {
         engine.remove(flightLiftTrack)
         engine.remove(rotationTrack)
         engine.remove(visibleTrack)
+        engine.remove(routeProgressTrack)
+        activeRoute = nil
+        interruptedRoute = nil
     }
 
     // MARK: - Test-only hooks
@@ -401,14 +427,60 @@ package final class PerchController {
 
     // MARK: - Route choice
 
-    private enum RunChaseRoute {
-        case plain
+    private enum ActiveRoute {
+        case around(AroundPath)
+        case resumed(ResumedRoute)
     }
 
-    /// TS: `resolveRunChaseRoute`. Always "plain" in this change - no around
-    /// or resumed route yet (a later change replaces this body only).
-    private func routeChoice() -> RunChaseRoute {
-        .plain
+    /// A route cut off on its curve or underside: the base path and the
+    /// progress along it where the animal was.
+    private struct InterruptedRoute {
+        let path: AroundPath
+        let s: Double
+    }
+
+    private enum RunChaseRoute {
+        case plain
+        case around(AroundPath)
+        case resumed(ResumedRoute)
+    }
+
+    /// TS: `resolveRunChaseRoute`. An interrupt of the curve or underside
+    /// resumes first; only lacking that does a fresh end-to-end tap route around.
+    private func routeChoice(
+        interrupted: InterruptedRoute?,
+        pill: PillFrame?,
+        plan: FocusPlan,
+        fromSlot: Int,
+        reduceMotionOn: Bool
+    ) -> RunChaseRoute {
+        // The path is planned against the pill, but the perch is drawn
+        // bottomExtra higher: a route from a raised seat would cross the pill.
+        guard let pill, plan.runSeatY == 0, bottomExtra == 0 else { return .plain }
+        if let interrupted, !reduceMotionOn,
+           let route = PerchAround.resumeAroundRoute(base: interrupted.path, s: interrupted.s, targetX: plan.targetX) {
+            return .resumed(route)
+        }
+        guard PerchAround.shouldRouteAround(
+            fromSlot: fromSlot,
+            toSlot: anchor.slotIndex,
+            slotCount: anchor.slotCount,
+            aroundRoute: profile.aroundRoute,
+            flightLift: profile.flightLift,
+            pill: pill,
+            reduceMotion: reduceMotionOn
+        ) else { return .plain }
+        let path = PerchAround.planAroundPath(
+            fromX: plan.fromX,
+            targetX: plan.targetX,
+            pill: pill,
+            windowWidth: screenWidth,
+            spriteScale: profile.scale,
+            footPad: profile.resolvedFootPad,
+            headPad: profile.resolvedHeadPad,
+            seatOffset: profile.resolvedSeatLift - PerchGeometry.seatedFootPad(footPad: profile.resolvedFootPad, scale: profile.scale)
+        )
+        return .around(path)
     }
 
     // MARK: - Focus branches
@@ -461,6 +533,79 @@ package final class PerchController {
         }
     }
 
+    /// TS: `runAroundRoute`. One progress clock drives x, seatY and rotation
+    /// together through `applyRoutePose`.
+    private func runAroundRoute(_ path: AroundPath, targetX: Double, generation: Int) {
+        setFacing(path.facing)
+        motionSpring = profile.commitSpring
+        setPose(.run)
+        activeRoute = .around(path)
+        engine.set(routeProgressTrack, 0)
+        let timing = TimingAnimation(toValue: path.totalLen, config: TimingConfig(duration: path.totalMs, easing: { Easing.linear($0) }))
+        engine.start(
+            routeProgressTrack,
+            DelayAnimation(Self.chaseReactionMs, timing),
+            maxAgeMs: Self.chaseReactionMs + path.totalMs + Self.runLegSettleMs
+        ) { [weak self] finished in
+            guard finished else { return }
+            self?.finishRoute(targetX: targetX, generation: generation)
+        }
+    }
+
+    /// TS: `runResumedRoute`. Continues the outline from where the animal is,
+    /// with no reaction pause: it is already moving.
+    private func runResumedRoute(_ route: ResumedRoute, targetX: Double, generation: Int) {
+        setFacing(route.facing)
+        motionSpring = profile.commitSpring
+        setPose(.run)
+        activeRoute = .resumed(route)
+        // Pose first, so no render state of this focus shows a seated animal.
+        let start = PerchAround.resumedPose(route: route, u: 0)
+        engine.set(xTrack, start.x)
+        engine.set(seatYTrack, start.seatY)
+        engine.set(rotationTrack, start.rotation)
+        engine.set(routeProgressTrack, 0)
+        let timing = TimingAnimation(toValue: route.totalLen, config: TimingConfig(duration: route.totalMs, easing: { Easing.linear($0) }))
+        engine.start(routeProgressTrack, timing, maxAgeMs: route.totalMs + Self.runLegSettleMs) { [weak self] finished in
+            guard finished else { return }
+            self?.finishRoute(targetX: targetX, generation: generation)
+        }
+    }
+
+    /// The route ended on the seat line: drop it, zero the turn (360 is 0)
+    /// and catch on the target.
+    private func finishRoute(targetX: Double, generation: Int) {
+        activeRoute = nil
+        engine.set(rotationTrack, 0)
+        engine.set(seatYTrack, 0)
+        engine.start(xTrack, SpringAnimation(toValue: targetX, config: springConfig(profile.catchSpring))) { [weak self] finished in
+            guard finished else { return }
+            self?.arrive(generation: generation)
+        }
+    }
+
+    /// Stops a route dead: drops the path so `applyRoutePose` writes nothing
+    /// more, and cancels the progress clock.
+    private func cancelRoute() {
+        activeRoute = nil
+        engine.cancel(routeProgressTrack)
+    }
+
+    private func applyRoutePose() {
+        guard let route = activeRoute else { return }
+        let progress = routeProgressTrack.currentValue
+        let pose: AroundPose
+        switch route {
+        case .around(let path):
+            pose = PerchAround.aroundPose(path: path, s: progress)
+        case .resumed(let resumed):
+            pose = PerchAround.resumedPose(route: resumed, u: progress)
+        }
+        engine.set(xTrack, pose.x)
+        engine.set(seatYTrack, pose.seatY)
+        engine.set(rotationTrack, pose.rotation)
+    }
+
     /// TS: `catchAtSeat`. The fast path (an instant teleport) runs unless
     /// this is a real arrived-by-drag catch, which springs instead from the
     /// live pre-focus position (`x.set(plan.fromX)` already baked `fromX == targetX`).
@@ -491,8 +636,9 @@ package final class PerchController {
 
     // MARK: - Blur
 
-    /// TS: the focus effect's own cleanup. No route staging here (no route
-    /// ever runs this change), so `liveSeat` always takes the plain `liveLastSeat` branch.
+    /// TS: the focus effect's own cleanup. A route cut off on its curve or
+    /// underside is staged for the next focus, and the handoff then records
+    /// bar level, since the route owns the vertical mid-flight.
     private func performBlur() {
         let cleanupResult = PerchHandoff.reduceRelease(state: releaseState, event: .focusCleanup)
         releaseState = cleanupResult.state
@@ -504,9 +650,11 @@ package final class PerchController {
         stopRemeasure = nil
 
         let liveX = xTrack.currentValue
-        let liveSeat = PerchHandoff.liveLastSeat(bottomExtra: bottomExtra, seatY: seatYTrack.currentValue)
+        stageInterrupt()
+        let liveSeat = PerchHandoff.liveLastSeat(bottomExtra: bottomExtra, seatY: interruptedRoute == nil ? seatYTrack.currentValue : 0)
 
         engine.cancel(xTrack)
+        cancelRoute()
         engine.cancel(rotationTrack)
         bumpMotion()
         snapVerticalToSeat(0)
@@ -517,6 +665,19 @@ package final class PerchController {
         engine.set(visibleTrack, 0)
         setPose(.sit)
         emitRenderState()
+    }
+
+    private func stageInterrupt() {
+        let progress = routeProgressTrack.currentValue
+        switch activeRoute {
+        case .around(let path):
+            let onCurve = path.legs.count > 3 && progress > path.legs[0] && progress < path.legs[3]
+            interruptedRoute = onCurve ? InterruptedRoute(path: path, s: progress) : nil
+        case .resumed(let route):
+            interruptedRoute = PerchAround.resumedBaseS(route: route, u: progress).map { InterruptedRoute(path: route.base, s: $0) }
+        case nil:
+            interruptedRoute = nil
+        }
     }
 
     // MARK: - Completions
@@ -580,6 +741,7 @@ package final class PerchController {
     /// TS: `snapVerticalToSeat`. Cancels hop/flightLift/seatY/rotation and
     /// any in-flight route, then seeds `seatY` at `seatYStart`.
     private func snapVerticalToSeat(_ seatYStart: Double) {
+        cancelRoute()
         engine.cancel(hopTrack)
         engine.set(hopTrack, 0)
         engine.cancel(flightLiftTrack)
@@ -624,7 +786,7 @@ package final class PerchController {
         let pillFound = measuredPill(for: anchor)
         lastPill = pillFound ?? lastPill
 
-        let seated = motionGeneration == generation && kindAtFocus != .runChase
+        let seated = motionGeneration == generation && kindAtFocus != .runChase && activeRoute == nil
         guard seated else { return }
 
         let seat = PerchGeometry.tabCenterX(tab: anchor.slotIndex, screenWidth: screenWidth, slotCount: anchor.slotCount, slotCenters: slotCenters)
