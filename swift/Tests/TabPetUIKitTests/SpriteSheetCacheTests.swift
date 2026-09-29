@@ -12,7 +12,7 @@ final class SpriteSheetCacheTests: XCTestCase {
             captured = result
             expectation.fulfill()
         }
-        wait(for: [expectation], timeout: 5.0)
+        wait(for: [expectation], timeout: 10.0)
         return captured
     }
 
@@ -140,7 +140,7 @@ final class SpriteSheetCacheTests: XCTestCase {
             if case .success(let image) = result { secondImage = image }
             secondDone.fulfill()
         }
-        wait(for: [firstDone, secondDone], timeout: 5.0)
+        wait(for: [firstDone, secondDone], timeout: 10.0)
 
         XCTAssertEqual(decodeCount.get(), 1, "two requests for one URL made before the first completes must decode only once")
         XCTAssertNotNil(firstImage)

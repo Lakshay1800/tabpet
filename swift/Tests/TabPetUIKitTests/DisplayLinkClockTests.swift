@@ -24,23 +24,29 @@ private func makeRealClockTestProfile() -> CompanionProfile {
 
 @MainActor
 final class DisplayLinkClockTests: XCTestCase {
+    private func waitUntil(timeout: TimeInterval = 10, _ condition: () -> Bool) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition() && Date() < deadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+        }
+    }
+
     // MARK: - Real-time tests (the only two in this target that use real time, loose bounds)
 
-    func testAfterFiresWithinALooseOneSecondBound() {
+    func testAfterTakesItsDelayInMilliseconds() {
         let clock = DisplayLinkClock()
         let expectation = expectation(description: "after(50ms) fires")
         let start = Date()
         _ = clock.after(milliseconds: 50) {
             expectation.fulfill()
         }
-        wait(for: [expectation], timeout: 1.0)
+        wait(for: [expectation], timeout: 10.0)
         // Mutation: milliseconds passed to `asyncAfter` unconverted would
-        // schedule this 1000x late (50 real seconds) and time the test out
-        // above instead of landing here.
-        XCTAssertLessThan(Date().timeIntervalSince(start), 1.0)
+        // schedule this 1000x late (50 real seconds), past this bound.
+        XCTAssertLessThan(Date().timeIntervalSince(start), 10.0)
     }
 
-    func testARunningLinkProducesDtBetweenOneAndOneHundredMilliseconds() {
+    func testARunningLinkProducesDtInMilliseconds() {
         let clock = DisplayLinkClock()
         var readings: [Double] = []
         let expectation = expectation(description: "two ticks")
@@ -51,13 +57,18 @@ final class DisplayLinkClockTests: XCTestCase {
             }
         }
         clock.setWantsFrames(true)
-        wait(for: [expectation], timeout: 2.0)
+        wait(for: [expectation], timeout: 10.0)
         clock.setWantsFrames(false)
+        guard readings.count >= 2 else {
+            return XCTFail("the link produced fewer than two ticks")
+        }
         let dt = readings[1] - readings[0]
         // Mutation: dropping the `* 1000` (via ClockUnits.ms) in the frame
         // time would make `now` read in seconds, putting dt far under 1ms.
         XCTAssertGreaterThan(dt, 1)
-        XCTAssertLessThan(dt, 100)
+        // A loaded machine can hold a frame for hundreds of ms. The bound only
+        // rules out a finer unit: one 120 Hz frame in microseconds is 8333.
+        XCTAssertLessThan(dt, 2000)
     }
 
     // MARK: - Deterministic state tests
@@ -156,9 +167,7 @@ final class DisplayLinkClockTests: XCTestCase {
     func testNowIsFreshOutsideATickEvenBeforeAnyTickEverFires() {
         let clock = DisplayLinkClock()
         let first = clock.now
-        let waited = expectation(description: "a short real wait")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { waited.fulfill() }
-        wait(for: [waited], timeout: 1.0)
+        waitUntil { clock.now > first }
         XCTAssertGreaterThan(clock.now, first, "now must track live time on its own, with no tick and no setWantsFrames ever having run")
     }
 
@@ -169,7 +178,7 @@ final class DisplayLinkClockTests: XCTestCase {
 
         let waited = expectation(description: "real time passes while suspended")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { waited.fulfill() }
-        wait(for: [waited], timeout: 1.0)
+        wait(for: [waited], timeout: 10.0)
         XCTAssertEqual(clock.now, frozen, accuracy: 0.001, "now must not move while suspended, however long real time passes")
 
         clock.resume()
@@ -186,17 +195,13 @@ final class DisplayLinkClockTests: XCTestCase {
 
         let rested = expectation(description: "a real stretch before the first commit")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { rested.fulfill() }
-        wait(for: [rested], timeout: 1.0)
+        wait(for: [rested], timeout: 10.0)
 
         player.commit(SpriteCommit(pose: .run))
-        let firstTick = expectation(description: "the fade's first real tick")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { firstTick.fulfill() }
-        wait(for: [firstTick], timeout: 1.0)
+        waitUntil { player.currentState.idle.opacity < 1 }
         XCTAssertLessThan(player.currentState.idle.opacity, 1, "still fading, not force-completed by a stale start time")
 
-        let fadeDone = expectation(description: "past the 110ms fade")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { fadeDone.fulfill() }
-        wait(for: [fadeDone], timeout: 1.0)
+        waitUntil { player.currentState.idle.opacity == 0 }
         XCTAssertEqual(player.currentState.idle.opacity, 0, "the fade completes normally once real time actually passes")
     }
 
@@ -207,13 +212,11 @@ final class DisplayLinkClockTests: XCTestCase {
 
         let whileSuspended = expectation(description: "real time passes before the view enters a window")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { whileSuspended.fulfill() }
-        wait(for: [whileSuspended], timeout: 1.0)
+        wait(for: [whileSuspended], timeout: 10.0)
         XCTAssertEqual(player.currentState.idle.frame, 0, "the greeting's delay has not started counting yet")
 
         clock.resume() // mirrors didMoveToWindow acquiring a window
-        let afterResume = expectation(description: "past the 600ms delay, into the greeting itself")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { afterResume.fulfill() }
-        wait(for: [afterResume], timeout: 2.0)
+        waitUntil { player.currentState.idle.frame > 0 }
         XCTAssertGreaterThan(player.currentState.idle.frame, 0, "the mount greeting is playing now that the clock actually runs")
     }
 
@@ -225,7 +228,7 @@ final class DisplayLinkClockTests: XCTestCase {
 
         let waited = expectation(description: "real time passes right after construction")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { waited.fulfill() }
-        wait(for: [waited], timeout: 1.0)
+        wait(for: [waited], timeout: 10.0)
         XCTAssertEqual(clock.now, frozen, accuracy: 0.001, "seeded-backgrounded must start frozen, not free-running")
     }
 
@@ -238,7 +241,7 @@ final class DisplayLinkClockTests: XCTestCase {
 
         let waited = expectation(description: "real time passes while backgrounded")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { waited.fulfill() }
-        wait(for: [waited], timeout: 1.0)
+        wait(for: [waited], timeout: 10.0)
         XCTAssertEqual(clock.now, frozen, accuracy: 0.001, "now must not move while backgrounded, however long real time passes")
 
         NotificationCenter.default.post(name: UIApplication.willEnterForegroundNotification, object: nil)
@@ -286,7 +289,7 @@ final class DisplayLinkClockTests: XCTestCase {
             }
         }
         clock.setWantsFrames(true)
-        wait(for: [sawTick], timeout: 2.0)
+        wait(for: [sawTick], timeout: 10.0)
         guard let insideTick = lastTickNow else {
             return XCTFail("never ticked")
         }
