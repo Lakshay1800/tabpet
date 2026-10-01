@@ -2,9 +2,9 @@
 
 # tabpet
 
-A companion for your Expo tab bar.
+A companion for your iOS tab bar, in React Native or Swift.
 
-[![npm](https://img.shields.io/npm/v/react-native-tabpet.svg)](https://www.npmjs.com/package/react-native-tabpet) [![license](https://img.shields.io/badge/code-MIT-blue.svg)](LICENSE) [![art](https://img.shields.io/badge/art-CC%20BY%204.0-green.svg)](assets/LICENSE-ART.md) ![platform](https://img.shields.io/badge/platform-iOS%2015.1%2B-lightgrey.svg)
+[![npm](https://img.shields.io/npm/v/react-native-tabpet.svg)](https://www.npmjs.com/package/react-native-tabpet) [![license](https://img.shields.io/badge/code-MIT-blue.svg)](LICENSE) [![art](https://img.shields.io/badge/art-CC%20BY%204.0-green.svg)](assets/LICENSE-ART.md) ![platform](https://img.shields.io/badge/platform-iOS%2015.1%2B-lightgrey.svg) ![swiftpm](https://img.shields.io/badge/SwiftPM-compatible-orange.svg)
 
 <p>
   <img src="docs/media/raccoon-around.gif" width="49%" alt="A raccoon sprite running along the iOS tab bar, off the end of the floating pill, upside down underneath it, and back up to sit on the far tab" />
@@ -15,7 +15,7 @@ A companion for your Expo tab bar.
 
 tabpet puts a small animal on your iOS tab bar. It lives there now. It sits on the tab you picked, runs over when you pick another, and chases your finger when you drag along the bar. Leave it alone and it sits back down.
 
-One Swift module measures the bar and streams its pan gesture. Everything else is a sprite sheet and a Reanimated worklet, which is why the package is thirteen megabytes and nearly all of it is pictures.
+It comes two ways. An Expo app installs `react-native-tabpet` from npm: one Swift module measures the bar and streams its pan gesture, and everything else is a sprite sheet and a Reanimated worklet, which is why the package is thirteen megabytes and nearly all of it is pictures. A UIKit or SwiftUI app adds this repo as a Swift package and gets the same six animals.
 
 Six animals come in the box: a panda, a cat, a turtle, a raccoon, a bird and a squirrel. They do not move the same way. The panda is heavy and hops anyway. The raccoon, sent from one end of the bar to the other, goes underneath. The bird flies, which is cheating. The turtle never leaves the ground.
 
@@ -31,7 +31,9 @@ The seventh animal is yours. Three short clips from Sora, Seedance or Grok Imagi
 
 Reduce Motion is honored throughout. The companion is a button with an accessibility label.
 
-## Install
+## React Native
+
+### Install
 
 Expo SDK 57+, New Architecture, a dev build. iOS only: the Swift module has no Android counterpart, so a cross-platform app gates the mount on `Platform.OS === 'ios'`.
 
@@ -41,7 +43,7 @@ npx expo prebuild --clean --platform ios
 npx expo run:ios
 ```
 
-## Use
+### Use
 
 Wrap the root once:
 
@@ -141,6 +143,7 @@ Each one is three sprite sheets and a profile of springs, speeds, and seat measu
 
 - [Integration guide](docs/integration.md), the host contract: mounting, pushed screens, bar drag, theme, custom bars
 - [API reference](docs/api.md)
+- [Swift guide](docs/swift.md), the SwiftUI and UIKit perch, the drag, and your own animal
 - [Profile reference](docs/profiles.md), every field and the bar it assumes
 - [Art pipeline](docs/art-pipeline.md), generation prompts, cutting sheets, cleaning them for dark tab bars, measuring a profile
 - [How it works](docs/how-it-works.md), the seat, the run, the around route
@@ -158,6 +161,8 @@ bunx expo run:ios
 Five tabs on the iOS 26 floating bar, a busy button on Explore, the animal picker on Settings. Maestro flows live in `apps/example/maestro/`.
 
 The simulator shows the seat, the run, and the around route. The finger chase and the bar's own scrub need a device.
+
+The Swift demo is `apps/swift-demo/TabPetDemo.xcodeproj`: open it in Xcode 16 or later and run on an iPhone simulator. It has the same five tabs in UIKit, and a button that swaps to them in SwiftUI. The [Swift guide](docs/swift.md#the-demo-app) lists its launch arguments.
 
 ## Contributing
 
