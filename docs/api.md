@@ -147,7 +147,7 @@ registerCompanion(cat);
 
 ## Per-screen mounting
 
-If different screens need different seats, mount a `CompanionPerch` in each tab screen with `focused={useIsFocused()}` (from `expo-router`). A module-level handoff makes the arriving instance start from where the departing one left off, so the run still looks continuous.
+If different screens need different seats, mount a `CompanionPerch` in each tab screen with `focused={useIsFocused()}` (from `expo-router`). A module-level handoff makes the arriving instance start from where the departing one left off, so the run still looks continuous, and a tab change that lands mid way round the pill resumes along the outline from the arriving instance.
 
 ## Accessibility
 

@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
+import { ScreenPerch } from '@/components/screen-perch';
 import { space, type } from '@/components/tokens';
 
 const HINTS = [
@@ -18,6 +19,7 @@ export default function Home() {
           </Text>
         ))}
       </View>
+      <ScreenPerch name="index" />
     </Screen>
   );
 }

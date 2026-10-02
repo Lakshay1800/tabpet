@@ -8,6 +8,7 @@ import {
 } from 'react-native-tabpet';
 
 import { Screen } from '@/components/screen';
+import { ScreenPerch } from '@/components/screen-perch';
 import { colors, radius, space, type } from '@/components/tokens';
 
 export default function Settings() {
@@ -38,6 +39,7 @@ export default function Settings() {
           );
         })}
       </View>
+      <ScreenPerch name="settings" />
     </Screen>
   );
 }

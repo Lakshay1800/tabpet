@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: with one perch per screen, a tab change that lands while the raccoon or squirrel is on the curve or the underside of the pill now resumes along the outline from the arriving perch. Before, the resume point stayed with the departing perch, so the arriving one snapped the companion up through the glass to its seat. A single perch above the navigator was never affected.
+- Example: `companion://explore?mount=screen` switches the example to one perch per tab screen, and `maestro/around-interrupt-screen.yaml` and `around-interrupt-forward-screen.yaml` record the interrupt in that mode.
+
 ## 0.3.0
 
 - Added: a Swift package for a native iOS app, from the same repository URL. Products: `TabPetUIKit` for the views, `TabPetCore` for the registry and profiles, one `TabPetAnimal<Name>` product per animal, and `TabPetAnimals` for all six. An app that links one animal ships only that animal's sheets.

@@ -141,6 +141,26 @@ type RunChaseRoute =
   | { kind: 'resumed'; route: ResumedRoute }
   | { kind: 'around'; path: AroundPath };
 
+/** A route interrupted mid curve/underside by a tab change: staged by the
+ *  blurring perch, taken (and cleared) by whichever real tab perch focuses
+ *  next. Module level, not an instance ref, because a per-screen host mounts
+ *  one perch per tab, so the instance that stages the interrupt is never the
+ *  one that resumes it; a single mount is simply its own next focus.
+ *  transientSlot perches neither stage nor take, matching the handoff store. */
+interface InterruptedRoute {
+  path: AroundPath;
+  s: number;
+}
+let stagedInterruptedRoute: InterruptedRoute | null = null;
+function stageInterruptedRoute(route: InterruptedRoute | null): void {
+  stagedInterruptedRoute = route;
+}
+function takeInterruptedRoute(): InterruptedRoute | null {
+  const route = stagedInterruptedRoute;
+  stagedInterruptedRoute = null;
+  return route;
+}
+
 /** Clears the release grace timer, if one is armed. Kept as a plain
  *  function (not a hook) so its own `if` doesn't count against the caller's
  *  complexity budget - called from several separate sites. */
@@ -430,11 +450,6 @@ export function CompanionPerch({
   const dragEngagedRef = useRef(false);
   // which hysteresis edge chaseStep uses (see CHASE_SLACK)
   const chasingRef = useRef(false);
-  // set by the focus-effect cleanup when a tab change interrupts a companion mid
-  // curve/underside; consumed (and cleared) by the next effect run's body.
-  // Only survives within this one mounted perch (the single-mount pattern) -
-  // a per-screen mount hands off through perch-handoff and never resumes.
-  const interruptedRouteRef = useRef<{ path: AroundPath; s: number } | null>(null);
   // the pending-release / arrival bookkeeping - reduceRelease (perch-handoff.ts)
   // is the only place these decisions are made; this ref just holds its state
   const releaseStateRef = useRef<ReleaseState>(initialReleaseState());
@@ -775,9 +790,10 @@ export function CompanionPerch({
       return;
     }
     const reduceMotionOn = reduceMotion === true;
-    // consumed at most once per focus - a plain run-chase clears it below too
-    const interrupted = interruptedRouteRef.current;
-    interruptedRouteRef.current = null;
+    // consumed at most once per focus - a plain run-chase clears it below too.
+    // A transientSlot perch leaves it staged for the tab perch that refocuses
+    // after the pushed screen pops.
+    const interrupted = transientSlot ? null : takeInterruptedRoute();
     // a pushed stack screen takes the tab bar out of the window between the
     // JS commit and the native pop, so a focus measured then reports no bar;
     // hold the last seat rather than dropping to the inset fallback
@@ -921,27 +937,26 @@ export function CompanionPerch({
       // cancelRoute() below drops routePath and its progress clock
       const activeRoute = routePath.get();
       const progressAtBlur = routeProgress.get();
+      let staged: InterruptedRoute | null = null;
       if (activeRoute?.kind === 'around') {
         const onCurve =
           progressAtBlur > activeRoute.path.legs[0] && progressAtBlur < activeRoute.path.legs[3];
-        interruptedRouteRef.current = onCurve
-          ? { path: activeRoute.path, s: progressAtBlur }
-          : null;
+        staged = onCurve ? { path: activeRoute.path, s: progressAtBlur } : null;
       } else if (activeRoute?.kind === 'resumed') {
         const mappedS = resumedBaseS(activeRoute.route, progressAtBlur);
-        interruptedRouteRef.current =
-          mappedS === null ? null : { path: activeRoute.route.base, s: mappedS };
-      } else {
-        interruptedRouteRef.current = null;
+        staged = mappedS === null ? null : { path: activeRoute.route.base, s: mappedS };
+      }
+      // a transientSlot perch never routes, and its blur (the pushed screen
+      // popping) must not wipe what the tab perch staged before it was covered
+      if (!transientSlot) {
+        stageInterruptedRoute(staged);
       }
       // the route owns the vertical mid-flight (seatY is the underside hang,
       // not a raised composer seat) - hand off at bar level so the next
       // planFocus computes runSeatY===0 and resolveRunChaseRoute can resume;
       // every other blur freezes the live altitude as before
       const liveSeat =
-        interruptedRouteRef.current === null
-          ? liveLastSeat(bottomExtra, seatY.get())
-          : liveLastSeat(bottomExtra, 0);
+        staged === null ? liveLastSeat(bottomExtra, seatY.get()) : liveLastSeat(bottomExtra, 0);
       stopFarApproach();
       cancelAnimation(x);
       cancelRoute();

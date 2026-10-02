@@ -5,7 +5,9 @@ import { beginCompanionBusy, nativeTabBarLayout, useSetCompanionId } from 'react
 
 import { evenSplitCenterX, play, rampScript } from '@/components/demo-finger';
 import type { FingerStep } from '@/components/demo-finger';
+import { setMountMode } from '@/components/mount-mode';
 import { Screen } from '@/components/screen';
+import { ScreenPerch } from '@/components/screen-perch';
 import { SLOT_COUNT, slotIndex, TABS, tabRoute } from '@/components/tabs';
 import { colors, radius, space, type } from '@/components/tokens';
 
@@ -91,11 +93,12 @@ export default function Explore() {
     // no script playing yet - replaced once a demo starts
   });
   const startedRef = useRef(false);
-  const { demo, to, lag, hold } = useLocalSearchParams<{
+  const { demo, to, lag, hold, mount } = useLocalSearchParams<{
     demo?: string;
     to?: string;
     lag?: string;
     hold?: string;
+    mount?: string;
   }>();
   useEffect(
     () => () => {
@@ -174,6 +177,16 @@ export default function Explore() {
     },
     [running]
   );
+  useEffect(() => {
+    if (mount !== 'screen' && mount !== 'layout') {
+      return;
+    }
+    const id = setTimeout(() => {
+      setMountMode(mount);
+      router.setParams({ mount: '' });
+    }, 0);
+    return () => clearTimeout(id);
+  }, [mount]);
   // Deep link drives the scripted sequence instead of a UI button so it can
   // be triggered from Maestro (or `simctl openurl`) without a real tap:
   // companion://explore?demo=turn-back or companion://explore?demo=keep-going
@@ -183,6 +196,10 @@ export default function Explore() {
   // link opening, so the navigation always lands after the release:
   // companion://explore?demo=drag-release&to=<slotIndex>&lag=<ms>
   // companion://explore?demo=far-grab&to=<slotIndex>&lag=<ms>
+  //
+  // companion://explore?mount=screen (or layout) switches the mount mode; open
+  // it in its own link BEFORE a demo link so the mode is committed before the
+  // scripted navigations start.
   //
   // far-grab also takes &hold=<ms>: instead of the default short lunge, the
   // finger creeps toward the companion by 1pt every 16ms for that long
@@ -253,6 +270,7 @@ export default function Explore() {
           </Text>
         </Pressable>
       </View>
+      <ScreenPerch name="explore" />
     </Screen>
   );
 }
