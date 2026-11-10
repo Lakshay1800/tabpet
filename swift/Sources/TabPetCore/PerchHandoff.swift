@@ -450,10 +450,39 @@ public enum PerchHandoff {
 public final class PerchHandoffStore {
     public static let shared = PerchHandoffStore()
 
+    /// A route cut off on its curve or underside: the base path and the
+    /// progress along it where the animal was.
+    package struct InterruptedRoute {
+        package let path: AroundPath
+        package let s: Double
+
+        package init(path: AroundPath, s: Double) {
+            self.path = path
+            self.s = s
+        }
+    }
+
     private var state: PerchHandoffState
+    /// TS: `stagedInterruptedRoute`, module level in companion-perch.tsx.
+    /// Lives on the store, not on a controller, because a host with one
+    /// perch per screen stages the interrupt on one perch and resumes it on
+    /// another; a single perch is simply its own next focus.
+    private var stagedInterruptedRoute: InterruptedRoute?
 
     public init() {
         state = PerchHandoff.initialPerchHandoff()
+    }
+
+    /// Staged by the blurring perch; `nil` clears whatever was staged.
+    package func stageInterruptedRoute(_ route: InterruptedRoute?) {
+        stagedInterruptedRoute = route
+    }
+
+    /// Taken, and cleared, by whichever tab perch focuses next.
+    package func takeInterruptedRoute() -> InterruptedRoute? {
+        let route = stagedInterruptedRoute
+        stagedInterruptedRoute = nil
+        return route
     }
 
     public func readPerchHandoff() -> PerchHandoffState {
@@ -467,5 +496,6 @@ public final class PerchHandoffStore {
     /// Test-only - module singleton must not leak across suites.
     func resetForTest() {
         state = PerchHandoff.initialPerchHandoff()
+        stagedInterruptedRoute = nil
     }
 }

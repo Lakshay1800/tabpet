@@ -9,12 +9,11 @@ const config: ExpoConfig = {
   version: '0.1.0',
   scheme: 'companion',
   orientation: 'portrait',
+  platforms: ['ios'],
   // the example's tokens are light-only; under 'automatic' on a dark-mode
   // device the tab-switch cross-fade blends through a black system backdrop
   // and every tab change flashes gray
   userInterfaceStyle: 'light',
-  // tokens.ts paper - the native root view behind the tab-switch cross-fade
-  backgroundColor: '#f4f4f2',
   ios: {
     bundleIdentifier: BUNDLE_ID,
     supportsTablet: false,

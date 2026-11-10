@@ -192,6 +192,7 @@ public final class CompanionPerchView: UIView {
     /// `detach()`, never deinit - no isolated deinit in Swift 5.9) - every
     /// setter is inert on a torn-down view.
     private var isTornDown = false
+    private var isRenderApplyScheduled = false
     private var lastKnownScreenWidth: Double
     private var lastKnownScreenHeight: Double
     /// The sanitized form of `anchor`, recomputed only when `anchor` itself
@@ -265,7 +266,16 @@ public final class CompanionPerchView: UIView {
             size: CGFloat(PerchGeometry.PERCH_SIZE),
             engine: engine,
             clock: clock,
-            onError: { error, site in box.view?.onError?(error, site) }
+            // box.view is not set until after super.init: only a report
+            // raised before then goes to the handler passed in. Once the view
+            // exists its own onError decides, including a handler set to nil.
+            onError: { error, site in
+                if let view = box.view {
+                    view.onError?(error, site)
+                } else {
+                    onError?(error, site)
+                }
+            }
         )
 
         super.init(frame: .zero)
@@ -279,6 +289,7 @@ public final class CompanionPerchView: UIView {
         spriteView.onHaptic = { [weak self] kind in self?.onHaptic?(kind) }
 
         controller.onError = { [weak self] error, label in self?.onError?(error, label) }
+        controller.onRenderState = { [weak self] _ in self?.scheduleRenderApply() }
         clock.frameHandler = { [weak self] now in self?.handleFrame(now: now) }
 
         NotificationCenter.default.addObserver(
@@ -586,6 +597,23 @@ public final class CompanionPerchView: UIView {
         applyRenderState()
     }
 
+    /// The controller changes state on its own - a busy edge, a remeasure
+    /// correction - while nothing animates and the display link is paused,
+    /// so no frame would ever carry it to the screen. Applied on the next
+    /// main-queue turn, not synchronously: the controller also publishes
+    /// mid-call (a blur inside a focus), and only the settled state belongs
+    /// on the sprite.
+    private func scheduleRenderApply() {
+        guard !isRenderApplyScheduled, !isTornDown else { return }
+        isRenderApplyScheduled = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.isRenderApplyScheduled = false
+            guard !self.isTornDown else { return }
+            self.applyRenderState()
+        }
+    }
+
     private func applyRenderState() {
         let state = controller.currentState
         updateFrameRateHint()
@@ -642,7 +670,6 @@ public final class CompanionPerchView: UIView {
     var debugClock: DisplayLinkClock { clock }
     var debugIsTornDown: Bool { isTornDown }
     var debugEngine: MotionEngine { engine }
-    var debugPanObserver: TabBarPanObserver? { panObserver }
     private(set) var debugFocusPassCount = 0
 }
 

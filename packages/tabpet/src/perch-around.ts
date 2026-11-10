@@ -122,10 +122,10 @@ export function planAroundPath(args: {
   fromX: number; // perch translateX at departure
   targetX: number; // perch translateX of the destination slot
   pill: PillFrame;
-  windowWidth: number;
+  windowWidth: number; // unread: kept so callers and the Swift port share one args shape
   spriteScale: number; // profile.scale
   footPad: number; // cell footPad (profile.footPad ?? 11)
-  headPad: number; // profile.headPad
+  headPad: number; // profile.headPad; unread, as windowWidth
   seatOffset: number; // perch's bottom offset from the bar top: (profile.seatLift ?? 6) - footPad
 }): AroundPath {
   const { fromX, targetX, pill, spriteScale, footPad, seatOffset } = args;

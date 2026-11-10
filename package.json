@@ -14,9 +14,10 @@
     "lint": "oxlint",
     "fmt": "oxfmt .",
     "fmt:check": "oxfmt --check .",
-    "check": "bun run leak-check && bun run typecheck && bun run fmt:check && bun run lint && bun run test && bun run conformance --check && bun run conformance --self-test && bun run motion-fixtures --check && bun run swift-asset-check",
+    "check": "bun run leak-check && bun run typecheck && bun run fmt:check && bun run lint && bun run test && bun run conformance --check && bun run conformance --self-test && bun run motion-fixtures --check && bun run swift-asset-check && bun run core-node-check && bun run knip",
     "leak-check": "bash tools/check-no-private-strings.sh",
     "swift-asset-check": "bash tools/swift-asset-check.sh",
+    "core-node-check": "bun run --cwd packages/tabpet build && node -e \"require('./packages/tabpet/build/core.js')\" && node --input-type=module -e \"await import('./packages/tabpet/build/core.js')\"",
     "example": "cd apps/example && bunx expo start",
     "knip": "knip"
   },

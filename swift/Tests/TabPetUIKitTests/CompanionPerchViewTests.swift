@@ -577,7 +577,7 @@ final class CompanionPerchViewTests: XCTestCase {
         XCTAssertGreaterThan(busyState.debugListenerCount, before, "setup: attaching must have subscribed")
 
         // Still in its window at the moment of detach - unlike the whole-
-        // hierarchy case above, didMoveToWindow's own window-loss branch
+        // hierarchy case below, didMoveToWindow's own window-loss branch
         // never gets a turn (isTornDown is already true by the time it would).
         perch.detach()
 
@@ -714,6 +714,57 @@ final class CompanionPerchViewTests: XCTestCase {
         waitUntil { tbc.view.window != nil }
         waitUntil { perch.debugCurrentPerchState.visible >= 0.99 }
         XCTAssertEqual(perch.debugCurrentPerchState.visible, 1, accuracy: 0.01, "the pet must be visible again once the window returns")
+    }
+
+    // MARK: - A sprite error raised while the perch is built reaches the handler
+
+    func testASpriteErrorRaisedWhileThePerchIsBuiltReachesTheInitHandler() {
+        var sites: [String] = []
+        let perch = CompanionPerchView(
+            companionID: "nobody",
+            registry: CompanionRegistry(),
+            anchor: CompanionAnchor(slotCount: 5, slotIndex: 0),
+            handoff: PerchHandoffStore(),
+            busy: CompanionState(),
+            onError: { _, site in sites.append(site) }
+        )
+        XCTAssertTrue(sites.contains("CompanionSpriteView.resolveProfile"), "an empty registry is reported at init, got \(sites)")
+        _ = perch
+    }
+
+    // MARK: - Mutation: a busy claim on a resting perch reaches the sprite
+
+    /// Nothing animates on a seated perch, so the display link is paused
+    /// and no frame would carry the controller's new pose to the sprite.
+    func testMutation_ABusyClaimOnARestingPerchReachesTheSpriteWithNoTabChange() {
+        let registry = CompanionRegistry()
+        let profile = SpriteTestFixtures.makeFixtureProfile(cellSize: 20)
+        registry.register(profile)
+        let busyState = CompanionState()
+        let (window, tbc) = makeHostedTabBarController()
+        let perch = CompanionPerchView(
+            companionID: profile.id,
+            registry: registry,
+            anchor: CompanionAnchor(slotCount: 5, slotIndex: 0),
+            handoff: PerchHandoffStore(),
+            busy: busyState
+        )
+        perch.attach(to: tbc)
+        tbc.view.layoutIfNeeded()
+        waitUntil { perch.debugCurrentPerchState.pose == .sit && perch.debugSpriteView.pose == .sit }
+        XCTAssertFalse(perch.debugSpriteView.isBusy, "setup: seated and not busy")
+
+        let endBusyClaim = busyState.beginCompanionBusy()
+        waitUntil(timeout: 3) { perch.debugSpriteView.isBusy }
+        XCTAssertTrue(perch.debugSpriteView.isBusy, "the claim must reach the sprite without a tab change or a touch")
+        XCTAssertEqual(perch.debugSpriteView.pose, .idle)
+
+        endBusyClaim()
+        waitUntil(timeout: 3) { !perch.debugSpriteView.isBusy }
+        XCTAssertFalse(perch.debugSpriteView.isBusy, "and so must its release")
+
+        perch.detach()
+        window.isHidden = true
     }
 
     // MARK: - Mutation: a busy claim held while off window still arrives idle

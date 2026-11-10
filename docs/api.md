@@ -73,7 +73,7 @@ The perch measures the native tab bar for item centers and bar height, so it sea
 | `onDragRelease` | `(slotIndex: number) => void` | only called in `barScrub: 'exclusive'` mode, on release over another slot - never for a cancelled drag |
 | `transientSlot` | `boolean` | default `false`. A pushed screen's own seat: snaps to `anchor.slotIndex` as an x position, no chase, and never touches the handoff the tab seats share |
 
-`slotCenters` and `barTop` are window-space. When omitted the perch measures the native bar via `nativeTabBarLayout()` and falls back to an even split of the screen width. `anchor.pill` is the floating pill's window-space frame, for custom bars that know their own geometry; omit it to measure the native bar, or pass `null` to say there is no pill (a classic `UITabBar`), which also disables the around route.
+`slotCenters` and `barTop` are window-space. When omitted the perch measures the native bar via `nativeTabBarLayout()` and falls back to an even split of the screen width inset 16pt on each side. `anchor.pill` is the floating pill's window-space frame, for custom bars that know their own geometry; omit it to measure the native bar, or pass `null` to say there is no pill (a classic `UITabBar`), which also disables the around route.
 
 ## Sprite
 
@@ -85,7 +85,7 @@ The animator underneath the perch, for custom placements. Props: `companionId`, 
 
 ### `<CompanionThumb id size>`
 
-Static thumbnail (first idle frame) for pickers and settings rows.
+Static thumbnail (the sit sheet's last frame, the rest pose the perch holds) for pickers and settings rows.
 
 ## Hooks
 
@@ -122,7 +122,7 @@ release(); // sits back down
 
 - `nativeTabBarFingerSource()` - the native pan stream, `null` if the module is missing
 - `useGestureFingerSource()` - a Gesture Handler `Pan` you attach to a custom tab bar, same event shape
-- `nativeTabBarLayout()` - measured `{ centers, top, pill }` of the native bar, `null` before layout (returns the measured `{ centers, top, pill }` for exact geometry)
+- `nativeTabBarLayout()` - measured `{ centers, top, pill }` of the native bar for exact geometry; `null` if the module is missing. Before the bar lays out, `centers` is empty and `top`/`pill` are `null`
 - `memoryStorage()` - the default storage
 - `setGlassPanScrub(mode)` - pushes `'native' | 'exclusive'` to the native recognizer; the perch calls it from its `barScrub` prop, so only a host driving the native pan itself needs it
 - `useCompanionConfig()` - the provider's `onError` and `onHaptic`, for custom placements built on `CompanionSprite`

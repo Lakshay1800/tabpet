@@ -2,7 +2,8 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": false,
-    "declaration": true
+    "declaration": true,
+    "module": "commonjs"
   },
   "exclude": ["src/**/*.test.ts"]
 }

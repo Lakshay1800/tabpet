@@ -28,8 +28,11 @@ jobs:
       - run: bun run lint
       - run: bun run test
       - run: bun run conformance --check
+      - run: bun run conformance --self-test
       - run: bun run motion-fixtures --check
       - run: bun run swift-asset-check
+      - run: bun run core-node-check
+      - run: bun run knip
       - run: cd apps/example && bunx expo export --platform ios --output-dir dist/ios
 
   swift:

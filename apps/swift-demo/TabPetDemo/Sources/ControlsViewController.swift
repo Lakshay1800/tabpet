@@ -194,6 +194,10 @@ final class ControlsViewController: UIViewController {
 
     @objc
     private func switchToSwiftUI() {
+        // this controller is about to be replaced: a claim it still holds
+        // would keep the shared state busy with no switch left to release it
+        busyRelease?()
+        busyRelease = nil
         DemoRoot.showSwiftUI(in: view.window)
     }
 

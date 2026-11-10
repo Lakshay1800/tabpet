@@ -17,7 +17,7 @@ npx expo prebuild --clean --platform ios
 npx expo run:ios
 ```
 
-The package is ~13MB installed - nearly all of it the six bundled sprite sheets.
+The package is ~13MB installed - nearly all of it the six animals' sprite sheets.
 
 ### Trying it from a local checkout
 
@@ -179,7 +179,7 @@ registerCompanion(cat);
 // ... <CompanionProvider defaultCompanionId="cat"> ... <CompanionPerch ... />
 ```
 
-Each animal's three sheets weigh 1.4MB to 3.2MB; the root entry bundles all six.
+Each animal's three sheets weigh 1.4MB to 3.1MB; the root entry bundles all six.
 
 ## Busy claims and the picker
 

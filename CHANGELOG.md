@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: after a StrictMode or Activity re-mount, the provider's stored companion, the sprite's tap and the perch's run arrival no longer stay switched off.
+- Fixed: `useGestureFingerSource` reports a cancelled drag as `cancelled` only. Before, it sent `ended` first, so a cancelled drag could navigate with `barScrub: 'exclusive'`.
+- Fixed: `react-native-tabpet/core` loads in plain Node. The `build` output is now CommonJS.
+- Fixed: in Swift, with one perch per screen sharing a `PerchHandoffStore`, a tab change mid-route resumes along the outline from the arriving perch, as 0.3.1 did for React Native. A `transientSlot` perch neither takes nor clears the resume point.
+- Fixed: in Swift, a busy claim on a seated perch shows at once, not at the next tab change or touch.
+- Fixed: in Swift, a slow animal climbing to a raised seat lands on it; a tap on a torn-down sprite does nothing; a sprite error raised while a perch is built reaches the `onError` passed to its initializer; a cached sheet is checked against the grid of each request.
+- Tools: `sprite-sheet.sh` rejects `--flip` with `--track` and prints its whole help; `frame-stack.sh` stops on ctrl-C and lets the recorder flush; `sheet-compare.py` skips a cell with no anchor pixels.
+- Docs: `headPad` is recorded per sheet but not read at runtime; the fallback tab positions are an even split of the screen width inset 16pt on each side.
+
 ## 0.3.1
 
 - Fixed: with one perch per screen, a tab change that lands while the raccoon or squirrel is on the curve or the underside of the pill now resumes along the outline from the arriving perch. Before, the resume point stayed with the departing perch, so the arriving one snapped the companion up through the glass to its seat. A single perch above the navigator was never affected.
@@ -14,6 +25,8 @@
 - Docs: a Swift guide in `docs/swift.md` and a release checklist in `docs/releasing.md`.
 
 ## 0.2.3
+
+Not tagged or published to npm on its own; these changes first shipped in 0.3.0.
 
 - Fixed: the squirrel no longer shows a light patch under its feet on a dark tab bar. Its three sheets lose the painted ground shadow, the white matte edge and the background sealed between the legs. The seat is unchanged.
 - Tools: `tools/ground-shadow.py` separates a painted ground shadow from the fur by position when color cannot, `tools/defringe.py` cleans the white matte edge, sealed pockets and specks, and `tools/sheet-compare.py` reports what a cleaning changed against the original sheet, cell by cell.

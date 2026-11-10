@@ -15,7 +15,7 @@ Every animal is a `CompanionProfile` with these fields:
 | `flightLift` | `number` | required | pt lifted off bar while running; 0 = stays grounded |
 | `scale` | `number` | required | render multiplier about the cell center; 1 = reference size. The perch computes `seatedFootPad(footPad, scale) = 27 - (27 - footPad) x scale`, so the paws land on the same line at every scale only when `footPad` equals the sheet's own measured value; any other value, the default 11 included, shifts the seat by `scale x (footPad - measured)` |
 | `aroundRoute` | `boolean` | required | first-slot to last-slot taps take the long way round the pill; ignored when `flightLift` > 0, on bars without a pill, with fewer than 3 slots, or under Reduce Motion |
-| `headPad` | `number` | per-animal | empty pt above run-cell drawing at reference size (see `RUN_HEAD_PAD` per animal) |
+| `headPad` | `number` | 0 | empty pt above run-cell drawing at reference size (see `RUN_HEAD_PAD` per animal). Recorded for each sheet but not read at runtime today |
 | `footPad` | `number` | 11 | empty pt between drawing's ground contact and sit-cell bottom at reference size; animals drawn without a ground shadow carry less air under the feet. Leaving it unset gives the default 11, which is not a measurement; the last check is a screenshot of the seated companion against the rim of the bar |
 | `seatLift` | `number` | 6 | pt ground contact sits above the measured bar top; 6 suits a classic bar (its "top" is the icons' edge), but on the iOS 26 pill the measured top is the glass rim so a companion sitting on it sets this near 0 |
 | `runSpeed` | `number` | 340 pt/s | ground speed for the tab-tap run leg; duration clamps stretch with it so slow animals stay slow on one-slot hops |

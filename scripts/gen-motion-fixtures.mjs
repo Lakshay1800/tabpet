@@ -744,19 +744,19 @@ assertOvershootClampMatters('spread-overshoot-clamping', {
   dt: 2,
 });
 
-// ---- 2. the three spring configs of all six animal profiles, read from
-//         the TS profile modules themselves, never a literal here ----
+// ---- 2. the three spring configs of every built-in animal profile, read
+//         from the registry itself (as gen-conformance.mjs does), never a
+//         literal list here, so a new animal registered the documented way
+//         gets its springs covered without anyone editing this file ----
 
-const { bird } = await import(path.join(root, 'packages/tabpet/src/animals/bird.ts'));
-const { cat } = await import(path.join(root, 'packages/tabpet/src/animals/cat.ts'));
-const { panda } = await import(path.join(root, 'packages/tabpet/src/animals/panda.ts'));
-const { raccoon } = await import(path.join(root, 'packages/tabpet/src/animals/raccoon.ts'));
-const { squirrel } = await import(path.join(root, 'packages/tabpet/src/animals/squirrel.ts'));
-const { turtle } = await import(path.join(root, 'packages/tabpet/src/animals/turtle.ts'));
+const { registerBuiltinCompanions } = await import(
+  path.join(root, 'packages/tabpet/src/animals/all.ts')
+);
+const { listCompanions } = await import(path.join(root, 'packages/tabpet/src/registry.ts'));
+registerBuiltinCompanions();
 
-const ANIMAL_PROFILES = { panda, cat, bird, raccoon, squirrel, turtle };
-
-for (const [animalId, profile] of Object.entries(ANIMAL_PROFILES)) {
+for (const profile of listCompanions()) {
+  const animalId = profile.id;
   for (const kind of ['commitSpring', 'trackSpring', 'catchSpring']) {
     addSpringCase(`animal-${animalId}-${kind}`, {
       fromValue: 0,

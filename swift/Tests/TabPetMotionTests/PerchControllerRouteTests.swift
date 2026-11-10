@@ -384,6 +384,45 @@ final class PerchControllerRouteTests: XCTestCase {
         XCTAssertEqual(rig.controller.currentState.pose, .run)
     }
 
+    // MARK: - One perch per screen: the interrupt is shared through the store
+
+    /// A host with one perch per screen stages the interrupt on the perch
+    /// that blurs and resumes it on the perch of the screen that focuses.
+    func testAnInterruptStagedByOnePerchIsResumedByAnotherOnTheSameStore() {
+        let rig = RouteRig()
+        let (path, s) = routeToMidCurve(rig)
+        guard let route = PerchAround.resumeAroundRoute(base: path, s: s, targetX: rig.seatX(2)) else {
+            return XCTFail("expected a resumed route")
+        }
+        rig.go(4, isFocused: false)
+
+        let other = rig.harness.makeController(profile: rig.profile, anchor: rig.anchor(2), screenWidth: rig.screenWidth)
+        other.focus(anchor: rig.anchor(2), isFocused: true, transientSlot: false, bottomExtra: 0, screenWidth: rig.screenWidth)
+
+        assertPose(other.currentState, equals: PerchAround.resumedPose(route: route, u: 0), "resumed by the other screen's perch")
+        XCTAssertEqual(other.currentState.pose, .run)
+    }
+
+    /// A pushed screen's perch neither takes the interrupt when it focuses
+    /// nor wipes it when it blurs: the tab perch underneath still resumes.
+    func testATransientPerchNeitherTakesNorClearsAStagedInterrupt() {
+        let rig = RouteRig()
+        let (path, s) = routeToMidCurve(rig)
+        guard let route = PerchAround.resumeAroundRoute(base: path, s: s, targetX: rig.seatX(2)) else {
+            return XCTFail("expected a resumed route")
+        }
+        rig.go(4, isFocused: false)
+
+        let pushed = rig.harness.makeController(profile: rig.profile, anchor: rig.anchor(1), screenWidth: rig.screenWidth, transientSlot: true)
+        pushed.focus(anchor: rig.anchor(1), isFocused: true, transientSlot: true, bottomExtra: 0, screenWidth: rig.screenWidth)
+        XCTAssertEqual(pushed.currentState.rotationDegrees, 0, accuracy: 1e-9, "a transient perch never routes")
+        pushed.focus(anchor: rig.anchor(1), isFocused: false, transientSlot: true, bottomExtra: 0, screenWidth: rig.screenWidth)
+
+        rig.go(2)
+        assertPose(rig.controller.currentState, equals: PerchAround.resumedPose(route: route, u: 0), "still resumed after the pushed screen came and went")
+        XCTAssertEqual(rig.controller.currentState.pose, .run)
+    }
+
     // MARK: - Remeasure, teardown, age limit
 
     func testRemeasureDuringARouteDoesNotMoveXOffTheRoute() {

@@ -98,7 +98,6 @@ package enum FingerPhase: Sendable {
 @MainActor
 package final class PerchController {
     private static let chaseReactionMs: Double = 65
-    private static let reducedDurationMs: Double = 200
     private static let hopStepMs: Double = 120
     private static let remeasureMaxTries = 60
     /// TS paces retryMeasure's retries by requestAnimationFrame - about 16ms
@@ -172,7 +171,6 @@ package final class PerchController {
     private var stopRemeasure: (@MainActor @Sendable () -> Void)?
     private var unsubscribeBusy: (@MainActor @Sendable () -> Void)?
     private var activeRoute: ActiveRoute?
-    private var interruptedRoute: InterruptedRoute?
 
     package init(
         profile: CompanionProfile,
@@ -316,9 +314,11 @@ package final class PerchController {
         hasActiveFocus = true
 
         // Consumed at most once per focus, and only by a focused pass, so an
-        // interrupt survives an unfocused pass in between.
-        let interrupted = interruptedRoute
-        interruptedRoute = nil
+        // interrupt survives an unfocused pass in between. It is held on the
+        // handoff store, so a perch on another screen can resume it. A
+        // transientSlot perch leaves it staged for the tab perch that
+        // refocuses once the pushed screen pops.
+        let interrupted = transientSlot ? nil : handoffStore.takeInterruptedRoute()
 
         let reduceMotionOn = reduceMotion()
         let measuredCentersNow = measuredCenters(for: anchor)
@@ -425,7 +425,6 @@ package final class PerchController {
         engine.remove(visibleTrack)
         engine.remove(routeProgressTrack)
         activeRoute = nil
-        interruptedRoute = nil
     }
 
     // MARK: - Test-only hooks
@@ -458,12 +457,7 @@ package final class PerchController {
         case resumed(ResumedRoute)
     }
 
-    /// A route cut off on its curve or underside: the base path and the
-    /// progress along it where the animal was.
-    private struct InterruptedRoute {
-        let path: AroundPath
-        let s: Double
-    }
+    private typealias InterruptedRoute = PerchHandoffStore.InterruptedRoute
 
     private enum RunChaseRoute {
         case plain
@@ -552,10 +546,12 @@ package final class PerchController {
             TimingAnimation(toValue: runSeatY, config: TimingConfig(duration: runMs, easing: { Easing.linear($0) })),
             SpringAnimation(toValue: 0, config: springConfig(profile.catchSpring))
         )
+        // Same allowance as x: its timing leg is just as long, and an
+        // aged-out seatY would rest at runSeatY with the catch never run.
         if arrivedByDrag {
-            engine.start(seatYTrack, seatLeg)
+            engine.start(seatYTrack, seatLeg, maxAgeMs: runLegMaxAgeMs)
         } else {
-            engine.start(seatYTrack, DelayAnimation(Self.chaseReactionMs, seatLeg))
+            engine.start(seatYTrack, DelayAnimation(Self.chaseReactionMs, seatLeg), maxAgeMs: runLegMaxAgeMs)
         }
     }
 
@@ -1026,8 +1022,14 @@ package final class PerchController {
         stopRemeasure = nil
 
         let liveX = xTrack.currentValue
-        stageInterrupt()
-        let liveSeat = PerchHandoff.liveLastSeat(bottomExtra: bottomExtra, seatY: interruptedRoute == nil ? seatYTrack.currentValue : 0)
+        let staged = interruptAtBlur()
+        // A transientSlot perch never routes, and its blur (the pushed
+        // screen popping) must not wipe what the tab perch staged before it
+        // was covered.
+        if !transientSlot {
+            handoffStore.stageInterruptedRoute(staged)
+        }
+        let liveSeat = PerchHandoff.liveLastSeat(bottomExtra: bottomExtra, seatY: staged == nil ? seatYTrack.currentValue : 0)
 
         // Flag off before x is cancelled, so the approach's own cancel
         // completion cannot rest a pose this blur is about to set anyway.
@@ -1047,16 +1049,18 @@ package final class PerchController {
         emitRenderState()
     }
 
-    private func stageInterrupt() {
+    /// The resume point of the route this blur cuts off, if it is on its
+    /// curve or underside.
+    private func interruptAtBlur() -> InterruptedRoute? {
         let progress = routeProgressTrack.currentValue
         switch activeRoute {
         case .around(let path):
             let onCurve = path.legs.count > 3 && progress > path.legs[0] && progress < path.legs[3]
-            interruptedRoute = onCurve ? InterruptedRoute(path: path, s: progress) : nil
+            return onCurve ? InterruptedRoute(path: path, s: progress) : nil
         case .resumed(let route):
-            interruptedRoute = PerchAround.resumedBaseS(route: route, u: progress).map { InterruptedRoute(path: route.base, s: $0) }
+            return PerchAround.resumedBaseS(route: route, u: progress).map { InterruptedRoute(path: route.base, s: $0) }
         case nil:
-            interruptedRoute = nil
+            return nil
         }
     }
 

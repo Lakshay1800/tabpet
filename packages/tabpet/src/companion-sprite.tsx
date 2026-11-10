@@ -35,7 +35,6 @@ import { DEFAULT_COMPANION_ID, getCompanion, listCompanions } from './registry';
 import type { CompanionProfile } from './registry';
 import { DEFAULT_SIT_SHEET, IDLE_SHEET_GRID, RUN_SHEET_GRID } from './sheet-geometry';
 
-export type { PupPose } from './pose-dissolve';
 /** Same shape as PupPose, named separately so callers don't need to know
  *  the internal pose-dissolve module exists. */
 export type CompanionPose = PupPose;
@@ -235,12 +234,14 @@ export function CompanionSprite({
 
   // guards late runOnJS/async completions from touching state post-unmount
   const mountedRef = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // re-armed on every mount: an effect re-mount (StrictMode, Activity) runs
+    // the cleanup and must not leave the guard stuck at false
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
-    },
-    []
-  );
+    };
+  }, []);
 
   useEffect(() => {
     playGreeting(600);

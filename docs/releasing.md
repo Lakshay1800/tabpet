@@ -93,7 +93,7 @@ Nothing here is automated. CI checks the code; it does not tag or publish. Every
    swift build
    ```
 
-   `resolve` must report `tabpet` at `X.Y.Z`. The build compiles the core, motion and animal targets on macOS. It does not build the `TabPetUIKit` views, which exist only on iOS; step 6 covers them.
+   `resolve` must report `tabpet` at `X.Y.Z`. The build compiles the core and animal targets on macOS. It does not build the `TabPetUIKit` views, which exist only on iOS; step 6 covers them.
 
 6. **Check Xcode offers it.** In Xcode, File, Add Package Dependencies, paste `https://github.com/Lakshay1800/tabpet`. The version list must show `X.Y.Z`. Add `TabPetUIKit` and one animal to a scratch iOS app and build it for a simulator.
 

@@ -63,12 +63,14 @@ export function CompanionProvider({
   const initial = defaultCompanionId ?? DEFAULT_COMPANION_ID;
   const [companionId, setCompanionId] = useState(initial);
   const mountedRef = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // re-armed on every mount: an effect re-mount (StrictMode, Activity) runs
+    // the cleanup and must not leave the guard stuck at false
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
-    },
-    []
-  );
+    };
+  }, []);
 
   const handleError = onError ?? defaultConfig.onError;
   const handleHaptic = onHaptic ?? defaultConfig.onHaptic;

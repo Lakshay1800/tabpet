@@ -1,7 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   CompanionThumb,
-  getCompanion,
   listCompanions,
   useCompanionId,
   useSetCompanionId,
@@ -34,7 +33,7 @@ export default function Settings() {
               style={[styles.tile, selected && styles.tileSelected]}
             >
               <CompanionThumb id={profile.id} size={64} />
-              <Text style={styles.tileLabel}>{getCompanion(profile.id)?.label}</Text>
+              <Text style={styles.tileLabel}>{profile.label}</Text>
             </Pressable>
           );
         })}

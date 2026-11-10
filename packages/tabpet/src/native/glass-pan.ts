@@ -31,7 +31,7 @@ const GlassPan = requireOptionalNativeModule<GlassPanModule>('GlassPan');
 if (!GlassPan) {
   warnMissingNativeModule(
     'GlassPan',
-    'tab positions fall back to an even split of the screen width and there is no finger chase'
+    'tab positions fall back to an even split of the inset screen width and there is no finger chase'
   );
 }
 

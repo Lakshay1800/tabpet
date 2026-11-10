@@ -87,6 +87,19 @@ final class SpriteSheetCacheTests: XCTestCase {
         XCTAssertTrue(first === second, "the second load must return the same cached CGImage instance, not a fresh decode")
     }
 
+    /// The cache is keyed by URL alone, so a hit must still be checked
+    /// against the grid of the request that hit it.
+    func testACachedSheetIsStillCheckedAgainstTheGridOfEachRequest() {
+        let url = SpriteTestFixtures.makeSolidColorPNG(pixelWidth: 100, pixelHeight: 100)
+        guard case .success = load(url: url, cols: 2, rows: 2) else {
+            return XCTFail("first load must succeed")
+        }
+        assertFailure(load(url: url, cols: 3, rows: 3), is: .sheetNotGridMultiple)
+        guard case .success = load(url: url, cols: 4, rows: 4) else {
+            return XCTFail("a grid that does divide the cached sheet must succeed")
+        }
+    }
+
     func testDecodeRunsOffTheMainThread() {
         let url = SpriteTestFixtures.makeSolidColorPNG(pixelWidth: 40, pixelHeight: 40)
         let observed = LockedBox<Bool?>(nil)
@@ -166,7 +179,7 @@ final class SpriteSheetCacheTests: XCTestCase {
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         )!
         context.draw(image, in: CGRect(x: 0, y: 0, width: 1, height: 1))
-        // Mutation: without kCGImageSourceShouldCacheImmediately the image
+        // Mutation: without the cache's eager decode at load time the image
         // can stay bound to the file that produced it - once that file is
         // gone, a lazy decode no longer reproduces the original pixel.
         for (channel, expected) in zip(pixel, [color.0, color.1, color.2, color.3]) {

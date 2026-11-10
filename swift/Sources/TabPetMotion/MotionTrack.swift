@@ -38,7 +38,7 @@
 ///
 /// `init`, `start` and `cancel` are internal, not `package`: only
 /// MotionEngine (this same target) may drive a track. Another target that
-/// merely holds a reference (a future UIKit layer) can read `currentValue`,
+/// merely holds a reference (the UIKit layer) can read `currentValue`,
 /// `isActive`, `label` and `onError`, but cannot start or cancel anything
 /// directly - only MotionEngine may, so the clock's `wantsFrames` hint
 /// never goes stale.
@@ -58,10 +58,10 @@ package final class MotionTrack {
     private(set) var maxAgeMs: Double = MotionTrack.defaultMaxAgeMs
 
     /// Reported for a guard that trips inside `start` itself (nesting past
-    /// `maxNestDepth`) - the tick-time guards (a non-finite frame, the 10s
-    /// age-out) are reported by MotionEngine directly from `step`'s own
-    /// outcome instead, since those only ever happen from inside a tick
-    /// MotionEngine already owns.
+    /// `maxNestDepth`) - a non-finite frame is reported by MotionEngine
+    /// directly from `step`'s own outcome instead, since that only ever
+    /// happens from inside a tick MotionEngine already owns. The 10s age-out
+    /// reports no error: it only completes the animation with false.
     package var onError: ((MotionError) -> Void)?
 
     /// Set once by `MotionEngine.remove` - see MotionEngine.remove's doc.

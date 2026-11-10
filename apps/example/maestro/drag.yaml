@@ -1,5 +1,7 @@
-# Slow drag along the floating bar: the companion chases, catches the finger, and
-# rests seated at it. Pair with `simctl io booted recordVideo` for frames.
+# Slow swipe along the floating bar. No test tool can drive the native tab bar
+# scrub, so this shows a still bar and no chase: it only proves a swipe leaves
+# the companion seated. The chase itself needs a finger on a device, or the
+# scripted finger in drag-release.yaml.
 appId: dev.example.companion
 ---
 - launchApp

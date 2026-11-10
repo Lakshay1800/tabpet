@@ -2,8 +2,8 @@
 /// native tab bar hasn't laid out yet on first focus), ported from
 /// perch-remeasure.ts. TabPetCore has no frame clock, so unlike the TypeScript
 /// (which defaults to `requestAnimationFrame`/`cancelAnimationFrame`), `schedule`
-/// and `cancel` are required here; a later milestone supplies a display-link
-/// scheduler from the UIKit target.
+/// and `cancel` are required here; PerchController supplies them from its
+/// injected clock.
 public enum PerchRemeasure {
     /// Holds the retry loop's mutable state in one MainActor-confined object so
     /// the recursive tick closure can capture it strongly without a "mutated

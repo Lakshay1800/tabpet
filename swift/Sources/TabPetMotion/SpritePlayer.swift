@@ -367,6 +367,7 @@ package final class SpritePlayer {
     /// method's return value, which reports only whether it greeted.
     @discardableResult
     package func tap() -> Bool {
+        guard !isTornDown else { return false }
         guard let last = lastCommit, last.pose == .idle, !last.busy else {
             return false
         }

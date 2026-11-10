@@ -19,7 +19,7 @@ Needs Xcode 16 or later.
 
 From a terminal, `tools/swift-demo-build.sh <simulator-udid>` at the repository root builds it for the simulator without signing. The udid comes from `xcrun simctl list devices`.
 
-To run it on a phone, the project has signing turned off, so choose a team first: open the `TabPetDemo` target, Signing and Capabilities, and pick your team. Then choose the phone and run. Do not commit that change.
+To run it on a phone, the project has signing turned off, so turn it on first: open the `TabPetDemo` target, Build Settings, and set `CODE_SIGNING_ALLOWED` and `CODE_SIGNING_REQUIRED` to `YES`; then in Signing and Capabilities pick your team. Then choose the phone and run. Do not commit those changes.
 
 The finger chase is tuned for a finger, so check it on a device. For a recording that repeats, the scripted drag below feeds the perch its own finger events on a simulator.
 
@@ -35,8 +35,8 @@ xcrun simctl launch <simulator-udid> org.tabpet.demo -demoAnimal raccoon -demoSt
 | --- | --- | --- |
 | `-demoAnimal` | an animal id, such as `raccoon` | the animal at launch |
 | `-demoStartTab` | `0` to `4` | the selected tab at launch |
-| `-demoBarScrub` | `native` or `exclusive` | the perch's `barScrub` |
-| `-scriptedDrag` | `near`, `far` or `cancel` | plays one scripted drag two seconds after the UIKit tabs appear |
+| `-demoBarScrub` | `native` or `exclusive` | the perch's `barScrub` (UIKit demo only) |
+| `-scriptedDrag` | `near`, `far` or `cancel` | plays one scripted drag two seconds after the UIKit tabs appear (UIKit demo only) |
 | `-demoRoot` | `uikit` or `swiftui` | which of the two apps opens first |
 
 ## Changing the project

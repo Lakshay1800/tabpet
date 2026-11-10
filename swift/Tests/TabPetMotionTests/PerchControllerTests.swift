@@ -115,6 +115,31 @@ final class PerchControllerTests: XCTestCase {
         XCTAssertFalse(harness.clock.wantsFrames)
     }
 
+    /// The seatY leg of a climb is as long as the x leg: without the same
+    /// age allowance the engine force-completes it mid-run and the catch
+    /// spring to the new seat never plays.
+    func testASlowAnimalsLongClimbToARaisedSeatStillLandsOnTheSeat() {
+        let harness = Harness()
+        let profile = makeProfile(runSpeed: 30)
+        let screenWidth = 500.0
+        let controller = harness.makeController(profile: profile, anchor: PerchAnchor(slotCount: 5, slotIndex: 0), screenWidth: screenWidth)
+        controller.focus(anchor: PerchAnchor(slotCount: 5, slotIndex: 0), transientSlot: false, bottomExtra: 0, screenWidth: screenWidth)
+
+        controller.focus(anchor: PerchAnchor(slotCount: 5, slotIndex: 4), transientSlot: false, bottomExtra: 24, screenWidth: screenWidth)
+        let fromX = PerchGeometry.tabCenterX(tab: 0, screenWidth: screenWidth, slotCount: 5)
+        let targetX = PerchGeometry.tabCenterX(tab: 4, screenWidth: screenWidth, slotCount: 5)
+        let runMs = PerchGeometry.traverseDurationMs(distancePt: abs(targetX - fromX), speedPtS: 30)
+        XCTAssertGreaterThan(65 + runMs, 10_000, "sanity: past the default age guard")
+        XCTAssertNotEqual(PerchHandoff.planRunSeatY(fromSeatY: 24 - 0), 0, "sanity: this is really a climb")
+
+        harness.clock.advance(ms: 65 + runMs + 3000, frameMs: 20)
+        controller.renderTick()
+
+        XCTAssertEqual(controller.currentState.pose, .sit)
+        XCTAssertEqual(controller.currentState.seatY, 0, accuracy: 1e-6, "the catch spring landed seatY on the new, raised seat")
+        XCTAssertFalse(harness.clock.wantsFrames)
+    }
+
     // MARK: - Hop
 
     func testHopPeaksAt185AndReturnsToZeroBy305() {

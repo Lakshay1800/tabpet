@@ -65,6 +65,7 @@ registerCompanion({
   hopHeight: -8,
   flightLift: 0,
   scale: 1,
+  aroundRoute: false,
 });
 ```
 
@@ -73,8 +74,8 @@ registerCompanion({
 Removes a keyed-but-opaque painted ground shadow from a finished sheet (see the art pipeline's "Removing a painted ground shadow"). ImageMagick 7 only.
 
 ```bash
-tools/deshadow.sh panda-sit-sprite.png panda-sit-clean.png            # 240px cells, band from row 180, disk 14
-tools/deshadow.sh otter-run-sprite.png otter-run-clean.png 240 190 11 # tighter band, smaller opening for a leaner animal
+tools/deshadow.sh panda-sit-sprite.png panda-sit-clean.png            # 240px cells, band from row 180, disk 11
+tools/deshadow.sh otter-run-sprite.png otter-run-clean.png 240 190 8  # tighter band, smaller opening for a leaner animal
 ```
 
 ## ground-shadow.py
