@@ -64,8 +64,8 @@ final class TabPetAnimalsSimSafeTests: XCTestCase {
     // MARK: - the bundle's resource directory holds exactly its own three
     // sheets and the license - nothing else, so a target that also copies an
     // extra file (a stray notes.json, a second .md, another animal's sheet)
-    // fails here even though the loose `paths(forResourcesOfType:)` check
-    // above would have passed it.
+    // fails here even though a check for the expected files alone would
+    // have passed it.
 
     /// What the platform itself places at the resource root, beside whatever
     /// the target's own `resources:` list copies - observed directly on both

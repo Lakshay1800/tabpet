@@ -1,5 +1,5 @@
-/// Window-space frame of the floating pill. Pure data - no UIKit - so a
-/// later geometry pass can take it without pulling in TabPetUIKit.
+/// Window-space frame of the floating pill. Pure data - no UIKit - so the
+/// geometry code can take it without pulling in TabPetUIKit.
 public struct PillFrame: Equatable, Hashable, Codable, Sendable {
     public let x: Double
     public let y: Double

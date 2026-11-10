@@ -98,7 +98,6 @@ package enum FingerPhase: Sendable {
 @MainActor
 package final class PerchController {
     private static let chaseReactionMs: Double = 65
-    private static let reducedDurationMs: Double = 200
     private static let hopStepMs: Double = 120
     private static let remeasureMaxTries = 60
     /// TS paces retryMeasure's retries by requestAnimationFrame - about 16ms

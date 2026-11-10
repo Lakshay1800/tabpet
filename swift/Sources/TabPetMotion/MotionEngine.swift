@@ -41,6 +41,7 @@ enum TrackStepOutcome {
 @MainActor
 package final class MotionEngine {
     /// Reported once per guard trip: the error and the track's own label.
+    /// An age-out is not an error and is not reported here.
     package var onError: ((MotionError, String) -> Void)?
 
     private let clock: MotionClock

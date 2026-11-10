@@ -3,7 +3,7 @@ import XCTest
 @testable import TabPetMotion
 
 /// A conforming type shaped the way a real display-link clock adapter
-/// (a later, UIKit-facing target outside this one) will be: a `@MainActor
+/// (TabPetUIKit's DisplayLinkClock, outside this target) is: a `@MainActor
 /// final class` implementing `MotionClock` end to end. Compiling this under
 /// StrictConcurrency with no warning is the proof that MotionClock,
 /// MotionCancellable and the rest of the actor-isolated surface really are
