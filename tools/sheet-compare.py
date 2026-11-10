@@ -81,6 +81,10 @@ def main():
             animal_big = biggest_component(animal_removed, cell)
             # light left near the ground, as seen on a dark bar
             rows = np.nonzero(anchor.sum(axis=1) >= 3)[0]
+            if rows.size == 0:
+                # no row of saturated or dark drawing to take a paw line from
+                print(f"r{cy // cell}c{cx // cell}: skipped, no anchor pixels")
+                continue
             paw = int(rows.max())
             a = c[..., 3] / 255.0
             dark = np.array([16, 16, 20])
@@ -88,10 +92,9 @@ def main():
             fl = 0.299 * flat[..., 0] + 0.587 * flat[..., 1] + 0.114 * flat[..., 2]
             band = np.zeros((cell, cell), dtype=bool)
             band[max(0, paw - 16):, :] = True
-            c_anchor = (c[..., 3] > 0) & (((c[..., 0] - c[..., 2]) >= 60) | False)
+            c_anchor = (c[..., 3] > 0) & ((c[..., 0] - c[..., 2]) >= 60)
             light_left = band & (c[..., 3] > 0) & (fl > 120) & ~c_anchor
             # only count what sits BELOW or beside the feet, touching transparency
-            touching = flood(light_left & False, light_left, cell)
             seeds = np.zeros((cell, cell), dtype=bool)
             for y, x in zip(*np.nonzero(light_left)):
                 y0, y1 = max(0, y - 1), min(cell, y + 2)
@@ -102,7 +105,8 @@ def main():
             # paw line at the pipeline convention, alpha over 10 percent
             def lowest(img):
                 rr = np.nonzero((img[..., 3] > 25).any(axis=1))[0]
-                return int(rr.max())
+                # a cell cleaned down to nothing has no lowest row
+                return int(rr.max()) if rr.size else -1
             po, pc = lowest(o), lowest(c)
             paw_moves.append(pc - po)
             n_removed = int(removed.sum())

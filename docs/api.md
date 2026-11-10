@@ -73,7 +73,7 @@ The perch measures the native tab bar for item centers and bar height, so it sea
 | `onDragRelease` | `(slotIndex: number) => void` | only called in `barScrub: 'exclusive'` mode, on release over another slot - never for a cancelled drag |
 | `transientSlot` | `boolean` | default `false`. A pushed screen's own seat: snaps to `anchor.slotIndex` as an x position, no chase, and never touches the handoff the tab seats share |
 
-`slotCenters` and `barTop` are window-space. When omitted the perch measures the native bar via `nativeTabBarLayout()` and falls back to an even split of the screen width. `anchor.pill` is the floating pill's window-space frame, for custom bars that know their own geometry; omit it to measure the native bar, or pass `null` to say there is no pill (a classic `UITabBar`), which also disables the around route.
+`slotCenters` and `barTop` are window-space. When omitted the perch measures the native bar via `nativeTabBarLayout()` and falls back to an even split of the screen width inset 16pt on each side. `anchor.pill` is the floating pill's window-space frame, for custom bars that know their own geometry; omit it to measure the native bar, or pass `null` to say there is no pill (a classic `UITabBar`), which also disables the around route.
 
 ## Sprite
 

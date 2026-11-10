@@ -49,8 +49,9 @@ export interface CompanionProfile {
   /** First-slot <-> last-slot taps take the scenic route around the pill;
    * ground animals only, ignored when flightLift > 0 or there's no pill. */
   aroundRoute: boolean;
-  /** Empty pt above the run-cell drawing at reference size (sheet-metrics.ts),
-   * used for the around route's wall lean. Omit to assume a full cell. */
+  /** Empty pt above the run-cell drawing at reference size (sheet-metrics.ts).
+   * Recorded for each sheet but not read at runtime: the around route no
+   * longer leans against the screen edge. */
   headPad?: number;
   /** Empty pt between the drawing's ground contact and the sit-cell bottom
    * at reference size; overrides the shared 11pt assumption. Animals drawn

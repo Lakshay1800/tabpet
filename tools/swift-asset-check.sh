@@ -16,6 +16,7 @@ cd "$(dirname "$0")/.."
 ASSETS_DIR="packages/tabpet/assets"
 SWIFT_SOURCES="swift/Sources"
 ORIGINAL_LICENSE="$ASSETS_DIR/LICENSE-ART.md"
+ROOT_LICENSE="assets/LICENSE-ART.md"
 PACKAGE_MANIFEST="Package.swift"
 
 if [ ! -d "$ASSETS_DIR" ]; then
@@ -129,6 +130,14 @@ while IFS= read -r -d '' dir; do
     report "$license: differs from $ORIGINAL_LICENSE (cmp)"
   fi
 done < <(find "$SWIFT_SOURCES" -mindepth 1 -maxdepth 1 -type d -name 'TabPetAnimal*' -print0)
+
+# The repo-root copy is the one the READMEs link to. It may differ from the
+# original only in line 3, which names the directory the sheets live in.
+if [ ! -f "$ROOT_LICENSE" ]; then
+  report "$ROOT_LICENSE: missing"
+elif ! diff -q <(sed '3d' "$ORIGINAL_LICENSE") <(sed '3d' "$ROOT_LICENSE") >/dev/null; then
+  report "$ROOT_LICENSE: differs from $ORIGINAL_LICENSE beyond line 3"
+fi
 
 if [ "$problems" -gt 0 ]; then
   echo "swift-asset-check: $problems problem(s) found" >&2

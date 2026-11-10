@@ -101,11 +101,22 @@ REC_PID=""
 cleanup() {
   # safety net: catches ctrl-C or an unexpected exit mid-flow. A recorder
   # left running holds the host recording lock for the next invocation.
+  # SIGINT first so it flushes and releases the lock; -9 only if it will not
+  # go, since a killed recorder can leave "Host recording is already in
+  # progress" behind.
   if [[ -n "$REC_PID" ]] && kill -0 "$REC_PID" 2>/dev/null; then
+    kill -INT "$REC_PID" 2>/dev/null || true
+    local tries=0
+    while (( tries < 50 )) && kill -0 "$REC_PID" 2>/dev/null; do
+      sleep 0.1
+      tries=$(( tries + 1 ))
+    done
     kill -9 "$REC_PID" 2>/dev/null || true
   fi
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+# without the exit, a ctrl-C would run cleanup and then carry on into ffmpeg
+trap 'exit 130' INT TERM
 
 xcrun simctl io "$UDID" recordVideo --codec h264 --force "$RECORDING" &
 REC_PID=$!

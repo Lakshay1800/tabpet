@@ -5,7 +5,13 @@
       "entry": ["src/**/*.test.ts"],
       "project": ["src/**/*.{ts,tsx}"]
     },
-    "apps/example": { "entry": ["app/**/*.tsx"], "project": ["**/*.{ts,tsx}"] },
-    ".": { "entry": ["scripts/*.mjs"] }
-  }
+    "apps/example": {
+      "entry": ["app/**/*.tsx"],
+      "project": ["**/*.{ts,tsx}"]
+    },
+    ".": {
+      "entry": ["scripts/*.mjs"]
+    }
+  },
+  "ignoreDependencies": ["expo-updates"]
 }

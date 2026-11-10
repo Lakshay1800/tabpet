@@ -82,8 +82,12 @@ export function rampScript(
   return script;
 }
 
-/** Even split of screenWidth, the fallback nativeTabBarLayout() documents
- *  for when it has no measured centers yet. */
+// the library's BAR_MARGIN_H: the floating bar's inset from each screen edge
+const BAR_MARGIN_H = 16;
+
+/** Even split of the inset screen width - where the perch itself seats when
+ *  nativeTabBarLayout() has no measured centers, so the scripted finger and
+ *  the companion agree on every slot. */
 export function evenSplitCenterX(slot: number, slotCount: number, screenWidth: number): number {
-  return ((slot + 0.5) * screenWidth) / slotCount;
+  return BAR_MARGIN_H + ((slot + 0.5) * (screenWidth - 2 * BAR_MARGIN_H)) / slotCount;
 }

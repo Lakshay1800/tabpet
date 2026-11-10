@@ -86,8 +86,8 @@ for (const animal of ANIMALS) {
     }
 
     if (geom.suffix === 'run') {
-      // RUN_HEAD_PAD must never claim more empty space than the sheet has:
-      // the around route would hang the head into the home indicator
+      // RUN_HEAD_PAD must never claim more empty space than the sheet has
+      // (nothing reads it at runtime today; this keeps the record honest)
       let minTop = CELL;
       for (let f = 0; f < geom.frames; f += 1) {
         minTop = Math.min(minTop, topOpaqueRow(png, f, geom.cols));

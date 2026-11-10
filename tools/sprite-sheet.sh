@@ -78,6 +78,7 @@ done
 for bin in ffmpeg ffprobe magick; do
   command -v "$bin" >/dev/null || { echo "missing dependency: $bin" >&2; exit 1; }
 done
+(( FLIP && TRACK )) && { echo "--flip does not apply with --track; flip the finished sheet instead" >&2; exit 1; }
 (( FRAMES % COLS == 0 )) || { echo "--frames ($FRAMES) must divide evenly by --cols ($COLS)" >&2; exit 1; }
 ROWS=$(( FRAMES / COLS ))
 

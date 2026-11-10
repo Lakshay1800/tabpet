@@ -96,7 +96,8 @@ export interface CompanionAnchor {
   slotCount: number;
   slotIndex: number;
   /** Window-space x centers of the slots (custom bars). Omitted: measured
-   *  from the native tab bar, else an even split of the screen width. */
+   *  from the native tab bar, else an even split of the screen width inset
+   *  16pt on each side (BAR_MARGIN_H). */
   slotCenters?: readonly number[];
   /** Window-space y of the bar's top edge. Omitted: measured from the
    *  native tab bar, else the bottom safe-area inset is assumed to be it. */
