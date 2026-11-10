@@ -752,4 +752,19 @@ final class SpritePlayerTests: XCTestCase {
 
         XCTAssertTrue(errors.isEmpty, "pressBegin/pressEnd after teardown must report nothing, not a trackRemoved error")
     }
+
+    /// Same reasoning for a tap: without its own guard it would start the
+    /// greeting on a removed track and report `.trackRemoved`.
+    func testMutation_TapAfterTeardownGreetsNothingAndReportsNothing() {
+        let clock = ManualClock()
+        let engine = MotionEngine(clock: clock)
+        var errors: [MotionError] = []
+        engine.onError = { error, _ in errors.append(error) }
+        let player = SpritePlayer(profile: makeProfile(), engine: engine, clock: clock)
+        player.commit(SpriteCommit(pose: .idle))
+        player.teardown()
+
+        XCTAssertFalse(player.tap(), "a torn-down player greets nothing")
+        XCTAssertTrue(errors.isEmpty, "tap after teardown must report nothing, not a trackRemoved error")
+    }
 }

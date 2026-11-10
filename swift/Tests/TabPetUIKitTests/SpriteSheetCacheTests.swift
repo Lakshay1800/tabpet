@@ -87,6 +87,19 @@ final class SpriteSheetCacheTests: XCTestCase {
         XCTAssertTrue(first === second, "the second load must return the same cached CGImage instance, not a fresh decode")
     }
 
+    /// The cache is keyed by URL alone, so a hit must still be checked
+    /// against the grid of the request that hit it.
+    func testACachedSheetIsStillCheckedAgainstTheGridOfEachRequest() {
+        let url = SpriteTestFixtures.makeSolidColorPNG(pixelWidth: 100, pixelHeight: 100)
+        guard case .success = load(url: url, cols: 2, rows: 2) else {
+            return XCTFail("first load must succeed")
+        }
+        assertFailure(load(url: url, cols: 3, rows: 3), is: .sheetNotGridMultiple)
+        guard case .success = load(url: url, cols: 4, rows: 4) else {
+            return XCTFail("a grid that does divide the cached sheet must succeed")
+        }
+    }
+
     func testDecodeRunsOffTheMainThread() {
         let url = SpriteTestFixtures.makeSolidColorPNG(pixelWidth: 40, pixelHeight: 40)
         let observed = LockedBox<Bool?>(nil)
