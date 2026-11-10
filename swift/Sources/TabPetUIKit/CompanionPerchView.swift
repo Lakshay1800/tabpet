@@ -266,9 +266,16 @@ public final class CompanionPerchView: UIView {
             size: CGFloat(PerchGeometry.PERCH_SIZE),
             engine: engine,
             clock: clock,
-            // box.view is not set until after super.init: a report raised
-            // while the sprite view is being built goes to the handler passed in.
-            onError: { error, site in (box.view?.onError ?? onError)?(error, site) }
+            // box.view is not set until after super.init: only a report
+            // raised before then goes to the handler passed in. Once the view
+            // exists its own onError decides, including a handler set to nil.
+            onError: { error, site in
+                if let view = box.view {
+                    view.onError?(error, site)
+                } else {
+                    onError?(error, site)
+                }
+            }
         )
 
         super.init(frame: .zero)
