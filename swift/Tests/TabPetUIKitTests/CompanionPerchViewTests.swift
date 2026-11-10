@@ -577,7 +577,7 @@ final class CompanionPerchViewTests: XCTestCase {
         XCTAssertGreaterThan(busyState.debugListenerCount, before, "setup: attaching must have subscribed")
 
         // Still in its window at the moment of detach - unlike the whole-
-        // hierarchy case above, didMoveToWindow's own window-loss branch
+        // hierarchy case below, didMoveToWindow's own window-loss branch
         // never gets a turn (isTornDown is already true by the time it would).
         perch.detach()
 

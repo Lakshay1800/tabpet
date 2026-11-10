@@ -282,7 +282,6 @@ function testNearestSlotPicksClosestCenter() {
   strictEqual(nearestSlot(215, width, 3, centers), 2);
 }
 testNearestSlotPicksClosestCenter();
-console.log('perch-geometry: 22 tests passed');
 
 // measured centers win over the even split, and a missing entry falls back
 {
@@ -290,3 +289,5 @@ console.log('perch-geometry: 22 tests passed');
   strictEqual(tabCenterX(1, 390, 3, centers), 120 - PERCH_SIZE / 2, 'measured center used');
   strictEqual(tabCenterX(2, 390, 5, [40, 120]), tabCenterX(2, 390, 5), 'missing entry falls back');
 }
+
+console.log('perch-geometry: 24 tests passed');

@@ -8,9 +8,7 @@ import { Image } from 'expo-image';
 import { StyleSheet, View } from 'react-native';
 
 import { getCompanion } from './registry';
-
-// mirrors companion-sprite's default; a profile's sitSheet overrides it
-const DEFAULT_SIT_SHEET = { cols: 5, rows: 5, frames: 25 };
+import { DEFAULT_SIT_SHEET } from './sheet-geometry';
 
 export function CompanionThumb({ id, size }: { id: string; size: number }) {
   const profile = getCompanion(id);

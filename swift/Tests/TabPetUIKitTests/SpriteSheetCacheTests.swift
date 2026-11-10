@@ -166,7 +166,7 @@ final class SpriteSheetCacheTests: XCTestCase {
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         )!
         context.draw(image, in: CGRect(x: 0, y: 0, width: 1, height: 1))
-        // Mutation: without kCGImageSourceShouldCacheImmediately the image
+        // Mutation: without the cache's eager decode at load time the image
         // can stay bound to the file that produced it - once that file is
         // gone, a lazy decode no longer reproduces the original pixel.
         for (channel, expected) in zip(pixel, [color.0, color.1, color.2, color.3]) {

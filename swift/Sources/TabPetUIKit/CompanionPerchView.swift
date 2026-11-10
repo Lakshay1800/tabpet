@@ -642,7 +642,6 @@ public final class CompanionPerchView: UIView {
     var debugClock: DisplayLinkClock { clock }
     var debugIsTornDown: Bool { isTornDown }
     var debugEngine: MotionEngine { engine }
-    var debugPanObserver: TabBarPanObserver? { panObserver }
     private(set) var debugFocusPassCount = 0
 }
 

@@ -469,8 +469,11 @@ export function CompanionPerch({
   }, []);
   // guards late runOnJS completions from touching state post-unmount
   const mountedRef = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // re-armed on every mount: an effect re-mount (StrictMode, Activity) runs
+    // the cleanup and must not leave the guard stuck at false
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
       stopFarApproach();
       const { state, effect } = reduceRelease(releaseStateRef.current, { type: 'unmount' });
@@ -478,9 +481,8 @@ export function CompanionPerch({
       if (effect === 'clear-timer') {
         clearReleaseTimer(releaseTimerRef);
       }
-    },
-    [stopFarApproach]
-  );
+    };
+  }, [stopFarApproach]);
   // generation-gates late spring `finished` (up to ~5s) - mountedRef alone
   // would sit the companion mid-air on a newer chase.
   const motionGenerationRef = useRef(0);
@@ -530,10 +532,6 @@ export function CompanionPerch({
     },
     [rest]
   );
-  // cross-dissolving to idle here would swap drawings when sit/idle came from different clips
-  const settle = useCallback(() => {
-    // intentionally no pose change
-  }, []);
 
   // The worklet's one arrival report: acts only when an approach is still
   // ours (farApproachRef) and belongs to this motion (generation match); a
@@ -777,7 +775,7 @@ export function CompanionPerch({
   // useEffect; the synchronous face()/setPose() calls below reproduce that hook's
   // exact focus-time behavior, not a derived-state anti-pattern
   useEffect(() => {
-    // consumed before the focused guard, unlike interruptedRouteRef below -
+    // consumed before the focused guard, unlike takeInterruptedRoute() below -
     // a pending release becomes an arrival on the focus-cleanup that
     // consumed it, whatever slot this focus-body ends up landing on
     const { state: releaseAfterBody, effect: releaseBodyEffect } = reduceRelease(
@@ -1428,11 +1426,11 @@ export function CompanionPerch({
   // oxlint-enable react-compiler
 
   // flight-capable companions only; a separate effect so it never touches
-  // handoff state. Uses motionSpringRef (falls back to trackSpring) so the
+  // handoff state. Uses motionSpringRef (trackSpring until a run sets it) so the
   // lift never races the horizontal motion that caused it.
   useEffect(() => {
     const target = pose === 'run' ? -profile.flightLift : 0;
-    const spring = motionSpringRef.current ?? profile.trackSpring;
+    const spring = motionSpringRef.current;
     flightLift.set(reduceMotion ? target : withSpring(target, spring));
   }, [pose, profile, reduceMotion, flightLift]);
 
@@ -1474,7 +1472,8 @@ export function CompanionPerch({
         pose={pose}
         busy={busy}
         facing={facing}
-        onSitDone={settle}
+        // no onSitDone: cross-dissolving to idle after the sit would swap
+        // drawings when sit/idle came from different clips
         onPress={onAction}
         pressLabel={actionLabel}
         onHaptic={onHaptic}

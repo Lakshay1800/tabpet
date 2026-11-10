@@ -51,8 +51,7 @@ export function useGestureFingerSource(): { source: FingerSource; gesture: PanGe
   }, []);
 
   // oxlint-disable react-compiler -- RNGH's Gesture.Pan builder, not a component; its
-  // callbacks run on the JS thread post-render (runOnJS(true)), same as the private
-  // app's grab gesture - the listenersRef read here is the intended pattern, not a
+  // callbacks run on the JS thread post-render (runOnJS(true)) - the listenersRef read here is the intended pattern, not a
   // render-time ref access
   return useMemo(() => {
     const source: FingerSource = {
@@ -72,8 +71,12 @@ export function useGestureFingerSource(): { source: FingerSource; gesture: PanGe
       .onUpdate((e) => {
         emit({ x: e.absoluteX, phase: 'moved' });
       })
-      .onEnd((e) => {
-        emit({ x: e.absoluteX, phase: 'ended' });
+      // RNGH also calls onEnd (success false) when an active pan is cancelled;
+      // onFinalize reports that one, so only a real lift is 'ended'
+      .onEnd((e, success) => {
+        if (success) {
+          emit({ x: e.absoluteX, phase: 'ended' });
+        }
       })
       .onFinalize((e, success) => {
         if (!success) {

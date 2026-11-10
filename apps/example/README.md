@@ -34,4 +34,4 @@ This example requires a dev build (custom native code; not compatible with Expo 
 
 ## Notes
 
-See the [API reference in the root README](../../README.md#api) and the [NativeTabs routing documentation](https://docs.expo.dev/router/advanced/native-tabs/).
+See the [API reference](../../docs/api.md) and the [NativeTabs routing documentation](https://docs.expo.dev/router/advanced/native-tabs/).

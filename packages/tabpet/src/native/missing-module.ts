@@ -1,7 +1,8 @@
 import { Platform } from 'react-native';
 
 // One warning per module per process - a mounted perch calls into these
-// getters every frame and must not spam the console.
+// getters on every focus (and every frame while it retries a measurement) and
+// must not spam the console.
 const warned = new Set<string>();
 
 /** Loud, dev-only heads-up when a required native module didn't link. Silent

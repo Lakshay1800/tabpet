@@ -18,7 +18,7 @@ final class SpriteSheetCache {
     }
 
     /// Cost is the decoded byte count, so NSCache evicts in proportion to
-    /// what's resident. The limit is about one animal's worth of sheets -
+    /// what's resident. The limit is about two animals' worth of sheets -
     /// a host cycling through more just re-decodes an evicted one.
     private let cache = NSCache<NSURL, CGImage>()
     private static let totalCostLimitBytes = 32_000_000
@@ -28,8 +28,8 @@ final class SpriteSheetCache {
     }
 
     /// Test-only: called from inside the decode itself with the URL and
-    /// `Thread.isMainThread`. An instance property, not a process-global,
-    /// so a test that forgets to clear it only affects its own instance.
+    /// `Thread.isMainThread`. `shared` is the only instance, so this is
+    /// effectively process-global: a test that sets it must clear it again.
     var debugDecodeHook: (@Sendable (URL, Bool) -> Void)?
 
     /// Test-only: the cache's own configured limit.

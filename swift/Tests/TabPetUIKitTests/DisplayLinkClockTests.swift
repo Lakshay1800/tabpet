@@ -31,7 +31,7 @@ final class DisplayLinkClockTests: XCTestCase {
         }
     }
 
-    // MARK: - Real-time tests (the only two in this target that use real time, loose bounds)
+    // MARK: - Real-time tests (loose bounds)
 
     func testAfterTakesItsDelayInMilliseconds() {
         let clock = DisplayLinkClock()
