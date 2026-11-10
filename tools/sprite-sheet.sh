@@ -49,7 +49,7 @@ FADE_SIDES="left,right,top"  # which edges --fade-edge may touch; bottom never
 INPUT=""
 OUTPUT=""
 
-usage() { sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+usage() { sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
 
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const root = path.resolve(import.meta.dirname, '..');
 const packagesDir = path.join(root, 'packages');
 
 function discover(dir) {

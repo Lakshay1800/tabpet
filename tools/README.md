@@ -65,6 +65,7 @@ registerCompanion({
   hopHeight: -8,
   flightLift: 0,
   scale: 1,
+  aroundRoute: false,
 });
 ```
 

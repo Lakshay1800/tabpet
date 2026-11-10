@@ -11,7 +11,7 @@ npx expo prebuild --clean --platform ios
 
 Wrap the root in `CompanionProvider`, mount one `CompanionPerch` beside the tab navigator, and pass it the active tab index. The integration guide has the whole thing.
 
-The root entry bundles all six sprite sheets (~13MB). To ship one animal, import from `react-native-tabpet/bare` and register only `react-native-tabpet/animals/<id>`.
+The root entry bundles all six animals' sprite sheets (~13MB). To ship one animal, import from `react-native-tabpet/bare` and register only `react-native-tabpet/animals/<id>`.
 
 ## Links
 

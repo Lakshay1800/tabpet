@@ -85,7 +85,7 @@ The animator underneath the perch, for custom placements. Props: `companionId`, 
 
 ### `<CompanionThumb id size>`
 
-Static thumbnail (first idle frame) for pickers and settings rows.
+Static thumbnail (the sit sheet's last frame, the rest pose the perch holds) for pickers and settings rows.
 
 ## Hooks
 
@@ -122,7 +122,7 @@ release(); // sits back down
 
 - `nativeTabBarFingerSource()` - the native pan stream, `null` if the module is missing
 - `useGestureFingerSource()` - a Gesture Handler `Pan` you attach to a custom tab bar, same event shape
-- `nativeTabBarLayout()` - measured `{ centers, top, pill }` of the native bar, `null` before layout (returns the measured `{ centers, top, pill }` for exact geometry)
+- `nativeTabBarLayout()` - measured `{ centers, top, pill }` of the native bar for exact geometry; `null` if the module is missing. Before the bar lays out, `centers` is empty and `top`/`pill` are `null`
 - `memoryStorage()` - the default storage
 - `setGlassPanScrub(mode)` - pushes `'native' | 'exclusive'` to the native recognizer; the perch calls it from its `barScrub` prop, so only a host driving the native pan itself needs it
 - `useCompanionConfig()` - the provider's `onError` and `onHaptic`, for custom placements built on `CompanionSprite`
